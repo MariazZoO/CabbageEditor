@@ -10,7 +10,7 @@
               class="welcome-logo-img"
           />
         </div>
-        <!-- 公告按钮与面板 -->
+        
         <div class="announcement-container">
           <div class="items-center w-2/3"></div>
           <!-- 公告按钮 -->

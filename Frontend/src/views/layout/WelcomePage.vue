@@ -13,7 +13,7 @@
         
         <div class="announcement-container">
           <div class="items-center w-2/3"></div>
-          <!-- 公告按钮 -->
+        
           <button
               @click="toggleAnnouncements"
               class="announcement-button">

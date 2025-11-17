@@ -18,6 +18,12 @@ type = "openai-compatible"
 base_url = "https://api.lingyaai.cn/v1"
 api_key = "sk-your-lingya-key"
 
+[[providers]]
+name = "dashscope"
+type = "dashscope"
+base_url = "https://dashscope-intl.aliyuncs.com"
+api_key = "sk-your-dashscope-key"
+
 [runtime]
 enable_gpu = false
 log_level = "INFO"
@@ -43,5 +49,5 @@ base_url = "https://api.lingyaai.cn/v1/images/generations"
 
 [media.video]
 enable = false
-provider = "closeai"
-model = "sora"
+provider = "dashscope"
+model = "wan2.2-i2v-flash"

@@ -21,6 +21,7 @@ from Backend.artificial_intelligence.agent.adapters import (
 from Backend.artificial_intelligence.config.config import get_app_config
 from Backend.artificial_intelligence.models import get_chat_model
 from Backend.artificial_intelligence.tools.storage import get_image_store
+from Backend.artificial_intelligence.tools.video_storage import get_video_store
 from Backend.artificial_intelligence.tools.session import (
     reset_current_session,
     set_current_session,
@@ -33,9 +34,11 @@ from Backend.artificial_intelligence.agent.requests import (
 )
 from Backend.artificial_intelligence.tools.image_handler import register_uploads
 from Backend.artificial_intelligence.tools.media.image_tools import _LingyaImageClient
+from Backend.artificial_intelligence.models.video_client import DashScopeVideoClient
 
 bootstrap()
 _IMAGE_STORE = get_image_store()
+_VIDEO_STORE = get_video_store()
 
 
 def handle_image_generation(payload: Any) -> str:
@@ -136,6 +139,153 @@ def handle_image_generation(payload: Any) -> str:
     except Exception as e:
         error_response = {
             "type": "image_generation",
+            "status": "error",
+            "timestamp": int(time.time()),
+            "session_id": request_data.get("session_id", default_session_id()),
+            "content": str(e),
+        }
+        return json.dumps(error_response, ensure_ascii=False)
+
+
+def handle_video_generation(payload: Any) -> str:
+    """
+    处理独立的视频生成请求（图生视频）
+
+    请求格式:
+    {
+        "prompt": "视频生成提示词",
+        "image_url": "autosave://...",     // 输入图片URL
+        "session_id": "session_xxx",       // 可选
+        "resolution": "720P",              // 可选：480P/720P/1080P
+        "prompt_extend": true,             // 可选：是否扩展提示词
+        "download_video": true             // 可选：是否下载视频到本地
+    }
+    """
+    try:
+        request_data = payload if isinstance(payload, dict) else {}
+        prompt = request_data.get("prompt")
+        image_url = request_data.get("image_url")
+
+        if not prompt:
+            raise ValueError("缺少必需参数: prompt")
+        if not image_url:
+            raise ValueError("缺少必需参数: image_url")
+
+        session_id = request_data.get("session_id", default_session_id())
+        resolution = request_data.get("resolution", "720P")
+        prompt_extend = request_data.get("prompt_extend", True)
+        download_video = request_data.get("download_video", True)
+
+        # 获取配置
+        cfg = get_app_config()
+        video_cfg = cfg.media.video
+
+        if not video_cfg.enable:
+            raise RuntimeError("视频生成功能未启用")
+
+        if not video_cfg.provider or not video_cfg.model:
+            raise RuntimeError("视频生成配置不完整")
+
+        if video_cfg.provider not in cfg.providers:
+            raise RuntimeError(f"未找到提供商配置: {video_cfg.provider}")
+
+        provider = cfg.providers[video_cfg.provider]
+        if not provider.api_key:
+            raise RuntimeError(f"提供商 '{video_cfg.provider}' 缺少 API Key")
+
+        # 创建客户端
+        client = DashScopeVideoClient(
+            provider=provider,
+            model=video_cfg.model,
+            base_url=video_cfg.base_url,
+        )
+
+        # 加载图片
+        import base64
+        from pathlib import Path
+
+        image_b64 = None
+
+        # 处理 data URI (base64)
+        if image_url.startswith("data:"):
+            if ";base64," in image_url:
+                image_b64 = image_url.split(";base64,", 1)[1]
+
+        # 处理 autosave:// URL
+        elif image_url.startswith("autosave://"):
+            stored = _IMAGE_STORE.resolve_url(image_url)
+            if stored and stored.path.exists():
+                image_b64 = base64.b64encode(stored.path.read_bytes()).decode("utf-8")
+
+        # 尝试作为本地路径
+        else:
+            candidate = Path(image_url)
+            if candidate.exists():
+                image_b64 = base64.b64encode(candidate.read_bytes()).decode("utf-8")
+
+        if not image_b64:
+            raise ValueError(f"无法加载图片：{image_url}")
+
+        # 生成视频
+        result = client.generate_video_from_image(
+            prompt=prompt,
+            image_b64=image_b64,
+            resolution=resolution,
+            prompt_extend=prompt_extend,
+            max_wait_seconds=600,
+            poll_interval=5.0,
+        )
+
+        # 构建响应
+        response = {
+            "type": "video_generation",
+            "status": "success",
+            "timestamp": int(time.time()),
+            "session_id": session_id,
+            "prompt": prompt,
+            "source": provider.name,
+            "model": client.model,
+            "video_url": result.get("output", {}).get("video_url"),
+            "task_id": result.get("task_id"),
+            "resolution": resolution,
+        }
+
+        # 添加可选字段
+        output = result.get("output", {})
+        if "orig_prompt" in output:
+            response["orig_prompt"] = output["orig_prompt"]
+        if "actual_prompt" in output:
+            response["actual_prompt"] = output["actual_prompt"]
+        if "usage" in result:
+            response["usage"] = result["usage"]
+
+        # 如果需要，下载视频到本地
+        if download_video and response["video_url"]:
+            try:
+                stored_video = _VIDEO_STORE.download_and_save(
+                    session_id=session_id,
+                    video_url=response["video_url"],
+                    task_id=response["task_id"],
+                    prompt=prompt,
+                    source_image_url=image_url,
+                )
+
+                # 添加本地存储信息
+                response["local_video"] = {
+                    "name": stored_video.name,
+                    "path": str(stored_video.path),
+                    "url": _VIDEO_STORE.build_url(stored_video),
+                    "file_size_mb": stored_video.file_size_mb,
+                }
+            except Exception as e:
+                # 下载失败不影响主流程
+                response["download_error"] = str(e)
+
+        return json.dumps(response, ensure_ascii=False)
+
+    except Exception as e:
+        error_response = {
+            "type": "video_generation",
             "status": "error",
             "timestamp": int(time.time()),
             "session_id": request_data.get("session_id", default_session_id()),
@@ -266,4 +416,5 @@ __all__ = [
     "handle_user_message",
     "handle_image_upload",
     "handle_image_generation",
+    "handle_video_generation",
 ]

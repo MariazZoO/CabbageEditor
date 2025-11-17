@@ -6,6 +6,7 @@ from typing import Any, TYPE_CHECKING
 _ATTR_MAP = {
     # map exported attribute name -> (module_path, attribute_name)
     "AIService": ("Backend.frontend_bridge.ai_bridge", "AIService"),
+    "ImageGenerationService": ("Backend.frontend_bridge.image_generation_bridge", "ImageGenerationService"),
     "AppService": ("Backend.frontend_bridge.app_bridge", "AppService"),
     "ProjectService": ("Backend.frontend_bridge.project_bridge", "ProjectService"),
     "SceneService": ("Backend.frontend_bridge.scene_bridge", "SceneService"),
@@ -19,6 +20,7 @@ __all__ = list(_ATTR_MAP.keys())
 if TYPE_CHECKING:
     # 仅供类型检查器/IDE 使用，运行时不执行这些导入
     from Backend.frontend_bridge.ai_bridge import AIService  # type: ignore
+    from Backend.frontend_bridge.image_generation_bridge import ImageGenerationService  # type: ignore
     from Backend.frontend_bridge.app_bridge import AppService  # type: ignore
     from Backend.frontend_bridge.project_bridge import ProjectService  # type: ignore
     from Backend.frontend_bridge.scene_bridge import SceneService  # type: ignore

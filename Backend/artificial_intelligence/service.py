@@ -32,9 +32,116 @@ from Backend.artificial_intelligence.agent.requests import (
     normalize_upload_request,
 )
 from Backend.artificial_intelligence.tools.image_handler import register_uploads
+from Backend.artificial_intelligence.tools.media.image_tools import _LingyaImageClient
 
 bootstrap()
 _IMAGE_STORE = get_image_store()
+
+
+def handle_image_generation(payload: Any) -> str:
+    """
+    处理独立的图像生成请求
+
+    请求格式:
+    {
+        "prompt": "生成图像的提示词",
+        "session_id": "session_xxx",
+        "product_url": "autosave://...",  // 可选
+        "scene_url": "autosave://...",    // 可选
+        "use_references": false           // 可选
+    }
+    """
+    try:
+        request_data = payload if isinstance(payload, dict) else {}
+        prompt = request_data.get("prompt")
+        if not prompt:
+            raise ValueError("缺少必需参数: prompt")
+
+        session_id = request_data.get("session_id", default_session_id())
+        product_url = request_data.get("product_url")
+        scene_url = request_data.get("scene_url")
+        use_references = request_data.get("use_references", False)
+
+        # 获取配置
+        cfg = get_app_config()
+        image_cfg = cfg.media.image
+
+        if not image_cfg.enable:
+            raise RuntimeError("图像生成功能未启用")
+
+        if not image_cfg.provider or not image_cfg.model:
+            raise RuntimeError("图像生成配置不完整")
+
+        if image_cfg.provider not in cfg.providers:
+            raise RuntimeError(f"未找到提供商配置: {image_cfg.provider}")
+
+        provider = cfg.providers[image_cfg.provider]
+        if not provider.api_key or not provider.base_url:
+            raise RuntimeError(f"提供商 '{image_cfg.provider}' 配置不完整")
+
+        # 创建客户端
+        client = _LingyaImageClient(
+            provider=provider,
+            model=image_cfg.model,
+            base_url=image_cfg.base_url,
+        )
+
+        # 自动引用会话中的图片
+        if use_references:
+            from Backend.artificial_intelligence.tools.media.image_tools import (
+                _latest_upload_url,
+            )
+
+            product_url = product_url or _latest_upload_url(
+                _IMAGE_STORE, session_id, "product"
+            )
+            scene_url = scene_url or _latest_upload_url(
+                _IMAGE_STORE, session_id, "scene"
+            )
+
+        # 生成图像
+        image_b64, mime_type = client.generate(
+            prompt=prompt,
+            store=_IMAGE_STORE,
+            product_url=product_url,
+            scene_url=scene_url,
+        )
+
+        # 保存生成的图像
+        stored = _IMAGE_STORE.save_generated(
+            session_id=session_id,
+            data_base64=f"data:{mime_type};base64,{image_b64}",
+            mime_type=mime_type,
+        )
+
+        image_url = _IMAGE_STORE.build_url(stored)
+
+        # 构建响应
+        response = {
+            "type": "image_generation",
+            "status": "success",
+            "timestamp": int(time.time()),
+            "session_id": session_id,
+            "prompt": prompt,
+            "image": {
+                "name": stored.name,
+                "path": str(stored.path),
+                "url": image_url,
+                "base64": image_b64,
+            },
+        }
+
+        return json.dumps(response, ensure_ascii=False)
+
+    except Exception as e:
+        error_response = {
+            "type": "image_generation",
+            "status": "error",
+            "timestamp": int(time.time()),
+            "session_id": request_data.get("session_id", default_session_id()),
+            "content": str(e),
+        }
+        return json.dumps(error_response, ensure_ascii=False)
 
 
 def invoke_messages(messages: List[BaseMessage]) -> Dict[str, Any]:
@@ -154,4 +261,9 @@ def _fallback_completion(history: List[BaseMessage]) -> str:
     return content
 
 
-__all__ = ["invoke_messages", "handle_user_message", "handle_image_upload"]
+__all__ = [
+    "invoke_messages",
+    "handle_user_message",
+    "handle_image_upload",
+    "handle_image_generation",
+]

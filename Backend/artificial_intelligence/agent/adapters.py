@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List, Sequence
 
-from langchain_core.messages import AIMessage, BaseMessage, ToolMessage, messages_to_dict
+from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
 from Backend.artificial_intelligence.agent.requests import IncomingRequest
 from Backend.artificial_intelligence.tools.image_handler import (
@@ -16,12 +16,18 @@ def extract_text(messages: List[Any]) -> str:
     if not messages:
         return ""
     last = messages[-1]
+    # content为数组，拼接所有text类型内容
     if isinstance(last, BaseMessage):
-        return render_message_content(last.content)
-    if isinstance(last, dict):
+        content = last.content
+    elif isinstance(last, dict):
         content = last.get("content")
-        return render_message_content(content)
-    return str(last)
+    else:
+        content = last
+    if isinstance(content, list):
+        return "\n".join([b["text"] for b in content if b.get("type") == "text"])
+    if isinstance(content, str):
+        return content
+    return str(content)
 
 
 def build_user_message(request: IncomingRequest, uploads: List[str]) -> Dict[str, Any]:
@@ -29,14 +35,22 @@ def build_user_message(request: IncomingRequest, uploads: List[str]) -> Dict[str
     text = request.text.strip()
     if text:
         blocks.append({"type": "text", "text": text})
+    # 添加图片附件为image_url类型
+    for attachment in request.images:
+        if attachment.url:
+            blocks.append({"type": "image_url", "image_url": attachment.url})
+    # 添加上传说明
     for note in uploads:
         blocks.append({"type": "text", "text": note})
     if not blocks:
         blocks.append({"type": "text", "text": "[图片上传]"})
+    # 只允许text和image_url类型
+    blocks = [b for b in blocks if b.get("type") in ("text", "image_url")]
     return {"role": "user", "content": blocks}
 
 
 def coerce_messages(state: Any) -> List[Any]:
+    """从 agent 输出中提取消息列表"""
     if isinstance(state, dict):
         messages = state.get("messages", [])
     else:
@@ -48,50 +62,6 @@ def coerce_messages(state: Any) -> List[Any]:
     return [messages]
 
 
-def convert_messages_for_history(messages: List[Any]) -> List[Dict[str, Any]]:
-    if not messages:
-        return []
-    if all(isinstance(msg, BaseMessage) for msg in messages):
-        return messages_to_dict(messages)  # type: ignore[arg-type]
-    converted: List[Dict[str, Any]] = []
-    for msg in messages:
-        if isinstance(msg, dict):
-            converted.append(msg)
-        elif isinstance(msg, BaseMessage):
-            converted.extend(messages_to_dict([msg]))
-        else:
-            converted.append({"role": "assistant", "content": str(msg)})
-    return converted
-
-
-def normalize_history_entries(messages: Sequence[Any]) -> List[Dict[str, Any]]:
-    normalized: List[Dict[str, Any]] = []
-    for message in messages:
-        normalized_message = _coerce_history_entry(message)
-        if normalized_message is not None:
-            normalized.append(normalized_message)
-    return normalized
-
-
-def sanitize_history_payloads(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    sanitized: List[Dict[str, Any]] = []
-    for entry in messages:
-        new_entry = dict(entry)
-        content = new_entry.get("content")
-        if isinstance(content, str):
-            new_entry["content"] = summarize_payload_text(content, strip_images=True)
-        elif isinstance(content, list):
-            trimmed_blocks: List[Any] = []
-            for block in content:
-                if isinstance(block, dict) and block.get("type") == "image" and block.get("base64"):
-                    block = dict(block)
-                    block.pop("base64", None)
-                trimmed_blocks.append(block)
-            new_entry["content"] = trimmed_blocks
-        sanitized.append(new_entry)
-    return sanitized
-
-
 def render_message_content(content: Any) -> str:
     if isinstance(content, str):
         return summarize_payload_text(content)
@@ -101,7 +71,10 @@ def render_message_content(content: Any) -> str:
             if isinstance(block, dict):
                 if block.get("type") == "text" and block.get("text"):
                     parts.append(str(block["text"]))
+                elif block.get("type") == "image_url" and block.get("image_url"):
+                    parts.append(f"[image] {block['image_url']}")
                 elif block.get("type") == "image" and block.get("url"):
+                    # 兼容旧格式
                     parts.append(f"[image] {block['url']}")
                 elif block.get("type") == "image" and block.get("base64"):
                     parts.append("[image]")
@@ -124,7 +97,9 @@ def extract_image_payload(messages: Sequence[Any]) -> Dict[str, Any] | None:
                 continue
             if isinstance(data, dict) and data.get("type") == "image":
                 if "image_base64" not in data:
-                    data_url = load_image_data_url(data.get("image_url") or data.get("image_path"))
+                    data_url = load_image_data_url(
+                        data.get("image_url") or data.get("image_path")
+                    )
                     if data_url:
                         data["image_base64"] = data_url
                 if "image_url" not in data:
@@ -147,7 +122,12 @@ def summarize_payload_text(text: str, strip_images: bool = False) -> str:
                 return "[image payload omitted]"
             return text
         if isinstance(data, dict) and "image_base64" in data:
-            name = data.get("image_name") or data.get("image_path") or data.get("prompt") or "image"
+            name = (
+                data.get("image_name")
+                or data.get("image_path")
+                or data.get("prompt")
+                or "image"
+            )
             data = dict(data)
             data.pop("image_base64", None)
             summary = f"[image payload: {name}]"
@@ -175,71 +155,8 @@ def log_ai_messages(payload: Any) -> None:
             print(f"[ToolMessage:{tool_name}] {text}")
 
 
-def _coerce_history_entry(message: Any) -> Dict[str, Any] | None:
-    if isinstance(message, BaseMessage):
-        return _base_message_to_chat_dict(message)
-    if isinstance(message, dict):
-        if "role" in message and "content" in message:
-            return message
-        if "type" in message and "data" in message:
-            return _message_dict_to_chat_dict(message)
-        if "content" in message:
-            role = str(message.get("role") or "assistant")
-            return {"role": role, "content": message.get("content")}
-        return None
-    if isinstance(message, str):
-        return {"role": "assistant", "content": message}
-    return None
-
-
-def _message_dict_to_chat_dict(message: Dict[str, Any]) -> Dict[str, Any]:
-    msg_type = str(message.get("type") or "")
-    data = dict(message.get("data") or {})
-    role = _message_type_to_role(msg_type)
-    content = data.get("content")
-    normalized: Dict[str, Any] = {"role": role, "content": content}
-    name = data.get("name")
-    if name:
-        normalized["name"] = name
-    tool_call_id = data.get("tool_call_id")
-    if tool_call_id:
-        normalized["tool_call_id"] = tool_call_id
-    additional = dict(data.get("additional_kwargs") or {})
-    tool_calls = additional.pop("tool_calls", None)
-    if tool_calls:
-        normalized["tool_calls"] = tool_calls
-    function_call = additional.pop("function_call", None)
-    if function_call:
-        normalized["function_call"] = function_call
-    if additional:
-        normalized["additional_kwargs"] = additional
-    return normalized
-
-
-def _base_message_to_chat_dict(message: BaseMessage) -> Dict[str, Any]:
-    normalized: Dict[str, Any] = {
-        "role": _message_type_to_role(getattr(message, "type", None)),
-        "content": message.content,
-    }
-    name = getattr(message, "name", None)
-    if name:
-        normalized["name"] = name
-    if isinstance(message, ToolMessage):
-        if getattr(message, "tool_call_id", None):
-            normalized["tool_call_id"] = message.tool_call_id
-    additional = dict(getattr(message, "additional_kwargs", {}) or {})
-    tool_calls = additional.pop("tool_calls", None)
-    if tool_calls:
-        normalized["tool_calls"] = tool_calls
-    function_call = additional.pop("function_call", None)
-    if function_call:
-        normalized["function_call"] = function_call
-    if additional:
-        normalized["additional_kwargs"] = additional
-    return normalized
-
-
 def _message_type_to_role(value: str | None) -> str:
+    """将 BaseMessage 的类型字段映射到标准的 role 字段"""
     mapping = {
         "human": "user",
         "user": "user",
@@ -256,9 +173,6 @@ __all__ = [
     "extract_text",
     "build_user_message",
     "coerce_messages",
-    "convert_messages_for_history",
-    "normalize_history_entries",
-    "sanitize_history_payloads",
     "render_message_content",
     "extract_image_payload",
     "summarize_payload_text",

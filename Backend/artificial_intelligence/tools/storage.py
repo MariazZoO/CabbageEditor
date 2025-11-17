@@ -90,11 +90,15 @@ class ImageStore:
             self._generated.setdefault(session_id, []).append(stored)
         return stored
 
-    def get_latest_upload(self, session_id: str, category: str) -> Optional[StoredImage]:
+    def get_latest_upload(
+        self, session_id: str, category: str
+    ) -> Optional[StoredImage]:
         with self._lock:
             return self._uploads.get(session_id, {}).get(category)
 
-    def get_latest_pair(self, session_id: str) -> Tuple[Optional[StoredImage], Optional[StoredImage]]:
+    def get_latest_pair(
+        self, session_id: str
+    ) -> Tuple[Optional[StoredImage], Optional[StoredImage]]:
         with self._lock:
             uploads = self._uploads.get(session_id, {})
             return uploads.get("product"), uploads.get("scene")
@@ -103,7 +107,9 @@ class ImageStore:
         with self._lock:
             return list(self._generated.get(session_id, []))
 
-    def register_reference(self, session_id: str, category: str, stored: StoredImage) -> None:
+    def register_reference(
+        self, session_id: str, category: str, stored: StoredImage
+    ) -> None:
         with self._lock:
             self._uploads.setdefault(session_id, {})[category] = stored
 
@@ -116,7 +122,7 @@ class ImageStore:
     def resolve_url(self, url: str) -> Optional[StoredImage]:
         if not url or not url.startswith(AUTOSAVE_URL_SCHEME):
             return None
-        relative = url[len(AUTOSAVE_URL_SCHEME) :]
+        relative = url[len(AUTOSAVE_URL_SCHEME):]
         parts = relative.split("/")
         if len(parts) < 4:
             return None
@@ -171,12 +177,50 @@ def _build_filename(original: str, category: str, mime: str) -> str:
 
 def _mime_to_extension(mime: str) -> str:
     lower = mime.lower()
-    if lower == "image/png":
-        return ".png"
-    if lower in {"image/jpeg", "image/jpg"}:
-        return ".jpg"
-    if lower == "image/webp":
-        return ".webp"
+    # 先移除参数部分（如"; charset=utf-8"）
+    base_mime = lower.split(";")[0].strip()
+
+    # 常见的图片格式映射
+    mime_map = {
+        "image/png": ".png",
+        "image/jpeg": ".jpg",
+        "image/jpg": ".jpg",
+        "image/webp": ".webp",
+        "image/gif": ".gif",
+        "image/bmp": ".bmp",
+        "image/x-bmp": ".bmp",
+        "image/x-ms-bmp": ".bmp",
+        "image/x-windows-bmp": ".bmp",
+        "image/tiff": ".tiff",
+        "image/x-tiff": ".tiff",
+        "image/svg+xml": ".svg",
+        "image/x-icon": ".ico",
+        "image/vnd.microsoft.icon": ".ico",
+        "image/x-jfif": ".jpg",
+        "image/x-portable-bitmap": ".pbm",
+        "image/x-portable-graymap": ".pgm",
+        "image/x-portable-pixmap": ".ppm",
+        "image/x-rgb": ".rgb",
+        "image/x-xbitmap": ".xbm",
+        "image/x-xpixmap": ".xpm",
+    }
+
+    # 首先尝试直接映射
+    if base_mime in mime_map:
+        return mime_map[base_mime]
+
+    # 如果MIME类型以image/开头但不在映射表中，尝试从MIME类型名提取扩展名
+    if base_mime.startswith("image/"):
+        subtype = base_mime.split("/", 1)[1].split("+")[0].strip()
+        # 移除非法字符
+        ext = re.sub(r"[^a-z0-9]", "", subtype)
+        if ext:
+            # 处理jpeg/jpg同义词
+            if ext == "jpeg":
+                return ".jpg"
+            return f".{ext}"
+
+    # 默认返回png
     return ".png"
 
 

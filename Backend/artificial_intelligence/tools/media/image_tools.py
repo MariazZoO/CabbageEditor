@@ -87,7 +87,7 @@ def load_image_tools(config: AppConfig) -> List[StructuredTool]:
 
     tool = StructuredTool(
         name="generate_image",
-        description="根据上传的产品与场景图片生成一张新的合成图。",
+        description="根据文字描述生成图片。支持纯文本生成，也可选择性引用已上传的产品或场景图片进行合成。",
         args_schema=ImageGenerationInput,
         func=_generate,
     )

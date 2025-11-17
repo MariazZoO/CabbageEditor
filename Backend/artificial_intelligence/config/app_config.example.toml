@@ -24,7 +24,7 @@ log_level = "INFO"
 
 [llm.chat]
 provider = "siliconflow"
-model = "Qwen/Qwen3-Next-80B-A3B-Instruct"
+model = "deepseek-ai/DeepSeek-V3.2-Exp"
 temperature = 0.2
 request_timeout = 60
 system_prompt = """
@@ -33,7 +33,7 @@ system_prompt = """
 
 [llm.tool_models.mcp]
 provider = "siliconflow"
-model = "Qwen/Qwen3-Next-80B-A3B-Instruct"
+model = "deepseek-ai/DeepSeek-V3.2-Exp"
 
 [media.image]
 enable = true

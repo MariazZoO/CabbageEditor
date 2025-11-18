@@ -11,7 +11,6 @@
     <div class="absolute bottom-0 left-0 w-4 h-4 cursor-sw-resize z-40" @mousedown="(e) => startResize(e, 'sw')"></div>
     <div class="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize z-40" @mousedown="(e) => startResize(e, 'se')"></div>
 
-
     <div class="p-4 shadow-md w-full bg-[#a8a4a3]/65 flex flex-col" style="height: calc(100vh - 48px);">
       <div class="p-2 border-b border-gray-400">
         <div class="flex items-center space-x-2">
@@ -217,6 +216,7 @@ import {defineListGenerators} from '@/blockly/generators/list.js';
 
 import {BLOCK_CATEGORY_MAP} from '@/blockly/configs/categoryMap.js';
 import {WORKSPACE_CONFIG} from '@/blockly/configs/workspaceConfig.js';
+import '@/blockly/configs/renderer.js'
 
 const broadcastList = ref([]);
 const createNewBroadcast = () => {

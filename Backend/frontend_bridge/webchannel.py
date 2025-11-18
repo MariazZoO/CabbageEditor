@@ -35,18 +35,21 @@ def setup_webchannel_for_view(
             from Backend.frontend_bridge import (
                 SceneService,
                 AIService,
+                ImageGenerationService,
                 ScriptingService,
                 ProjectService,
                 AppService,
             )
             scene_service = SceneService(None)
             ai_service = AIService(None)
+            image_gen_service = ImageGenerationService(None)
             scripting_service = ScriptingService(None)
             project_service = ProjectService(scene_service, None)
             app_service = AppService(None)
 
             channel.registerObject("sceneService", scene_service)
             channel.registerObject("aiService", ai_service)
+            channel.registerObject("imageGenerationService", image_gen_service)
             channel.registerObject("scriptingService", scripting_service)
             channel.registerObject("projectService", project_service)
             channel.registerObject("appService", app_service)
@@ -61,10 +64,12 @@ def setup_webchannel_for_view(
             elif central_manager is not None and hasattr(central_manager, 'send_json_to_dock'):
                 # 使用弱引用避免 lambda 捕获 central_manager 导致引用泄漏
                 cm_ref = weakref.ref(central_manager)
+
                 def _send_to_dock(name, data, cm_ref=cm_ref):
                     cm = cm_ref()
                     if cm is not None:
                         cm.send_json_to_dock(name, data)
+
                 app_service.message_to_dock_requested.connect(_send_to_dock)
             if on_command_to_main is not None:
                 app_service.command_to_main_requested.connect(on_command_to_main)
@@ -72,6 +77,7 @@ def setup_webchannel_for_view(
             services = {
                 "sceneService": scene_service,
                 "aiService": ai_service,
+                "imageGenerationService": image_gen_service,
                 "scriptingService": scripting_service,
                 "projectService": project_service,
                 "appService": app_service,
@@ -106,6 +112,14 @@ def teardown_webchannel_for_view(view: QWebEngineView, ctx: WebChannelContext) -
                     ai_service.cleanup()
                 except Exception:
                     logger.exception("清理 AIService 失败")
+
+            # 清理 ImageGenerationService 的工作线程
+            image_gen_service = ctx.services.get('imageGenerationService')
+            if image_gen_service and hasattr(image_gen_service, 'cleanup'):
+                try:
+                    image_gen_service.cleanup()
+                except Exception:
+                    logger.exception("清理 ImageGenerationService 失败")
 
             # 断开 AppService 的信号连接
             app_service = ctx.services.get('appService')

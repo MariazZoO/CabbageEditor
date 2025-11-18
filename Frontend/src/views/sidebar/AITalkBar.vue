@@ -18,7 +18,11 @@
         <div class="max-w-6xl mx-auto">
           <div class="space-y-2 pr-2">
             <div v-for="(message, index) in messages" :key="index"
-                 class="p-3 bg-[#E8E8E8]/80 rounded-lg shadow-sm border border-gray-100 space-y-2">
+                 class="p-3 bg-[#E8E8E8]/80 rounded-lg shadow-sm border border-gray-100 space-y-2"
+                 :class="{
+                   'opacity-70': message.status === 'sending',
+                   'border-red-300 bg-red-50/50': message.status === 'failed'
+                 }">
               <div>
                 <span :class="{
                   'text-blue-500': message.sender === 'AI',
@@ -28,6 +32,17 @@
                   {{ message.sender }}:
                 </span>
                 <span v-if="message.text" class="text-gray-700 break-words whitespace-pre-wrap">{{ message.text }}</span>
+                
+                <!-- 发送状态指示器 -->
+                <span v-if="message.status === 'sending'" class="ml-2 text-xs text-gray-500">
+                  <span class="inline-block animate-pulse">发送中...</span>
+                </span>
+                <span v-if="message.status === 'failed'" class="ml-2 text-xs text-red-500">
+                  发送失败
+                  <button @click="retryMessage(index)" class="ml-2 px-2 py-0.5 bg-red-500 text-white rounded hover:bg-red-600 text-xs">
+                    重试
+                  </button>
+                </span>
               </div>
               <!-- 单张图片显示 -->
               <div v-if="message.imageData" class="max-w-sm">
@@ -95,8 +110,27 @@
                   <div v-for="type in imageTypes" :key="type">
                     <div v-if="pendingImages[type]" class="relative group">
                       <img :src="pendingImages[type].preview" :alt="pendingImages[type].name" class="h-20 w-20 object-cover rounded border border-blue-300" />
-                      <button @click="removeImage(type)" class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity">×</button>
-                      <div class="text-xs text-gray-600 mt-1 w-20 truncate capitalize" :title="pendingImages[type].name">{{ imageTypeLabels[type] }}</div>
+                      
+                      <!-- 上传中遮罩 -->
+                      <div v-if="pendingImages[type].uploading" class="absolute inset-0 bg-black/50 rounded flex items-center justify-center">
+                        <svg class="animate-spin h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      </div>
+                      
+                      <!-- 移除按钮 -->
+                      <button 
+                        v-if="!pendingImages[type].uploading"
+                        @click="removeImage(type)" 
+                        class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                        ×
+                      </button>
+                      
+                      <div class="text-xs text-gray-600 mt-1 w-20 truncate capitalize" :title="pendingImages[type].name">
+                        {{ imageTypeLabels[type] }}
+                        <span v-if="pendingImages[type].uploading" class="text-blue-500">上传中</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -105,8 +139,22 @@
 
             <!-- 底部：发送按钮 -->
             <div class="flex justify-end">
-              <button @click="sendMessage" class="px-5 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 whitespace-nowrap">
-                发送
+              <button 
+                @click="sendMessage" 
+                :disabled="isSending"
+                class="px-5 py-2 bg-blue-500 text-white rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 whitespace-nowrap"
+                :class="{
+                  'hover:bg-blue-600': !isSending,
+                  'opacity-50 cursor-not-allowed': isSending
+                }">
+                <span v-if="!isSending">发送</span>
+                <span v-else class="flex items-center gap-2">
+                  <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  发送中...
+                </span>
               </button>
             </div>
 
@@ -138,11 +186,14 @@ import DockTitleBar from '@/components/ui/DockTitleBar.vue';
 const {dragState, startResize, stopDrag, onDrag, stopResize, onResize} = useDragResize();
 
 const messages = ref([
-  {sender: "AI", text: "你好！我是 AI。"},
+  {sender: "AI", text: "你好！我是 AI。", status: 'success'},
 ]);
 const userInput = ref('');
 const chatHistoryRef = ref(null);
 const sessionId = ref(null);
+const isSending = ref(false); // 发送状态
+const sendTimeout = ref(null); // 发送超时定时器
+const MESSAGE_TIMEOUT = 30000; // 30秒超时
 
 // 图片相关
 const imageInputRef = ref(null);
@@ -265,29 +316,21 @@ async function onImageChange(e) {
   try {
     const base64 = await fileToBase64(file);
     const type = currentImageType.value;
+    
+    // 只在前端预览，不立即上传
     pendingImages.value[type] = {
       name: file.name,
       preview: base64,
       type,
       url: null,
-      uploading: true,
-    };
-    const result = await uploadImageToBackend({type, name: file.name, data: base64});
-    const url = result?.image?.url;
-    if (!url) {
-      throw new Error(result?.content || '上传失败');
-    }
-    pendingImages.value[type] = {
-      name: file.name,
-      preview: base64,
-      type,
-      url,
       uploading: false,
+      needsUpload: true, // 标记需要上传
     };
+    
     imageError.value = '';
   } catch (err) {
     console.error('读取图片失败', err);
-    imageError.value = err?.message || '上传图片失败，请重试。';
+    imageError.value = err?.message || '读取图片失败，请重试。';
     if (currentImageType.value) {
       pendingImages.value[currentImageType.value] = null;
     }
@@ -312,14 +355,26 @@ const SendMessageToAI = async (query, extra = {}) => {
   await waitWebChannel();
   const payloadObj = {message: query, session_id: sessionId.value, ...extra};
   const payload = JSON.stringify(payloadObj);
-  if (window.aiService && typeof window.aiService.send_message_to_ai === 'function') {
-    window.aiService.send_message_to_ai(payload);
-  } else {
-    console.error("未发现 AI 通道 (aiService/pyBridge)");
-  }
+  
+  // 返回 Promise 以便调用者处理结果
+  return new Promise((resolve, reject) => {
+    try {
+      if (window.aiService && typeof window.aiService.send_message_to_ai === 'function') {
+        window.aiService.send_message_to_ai(payload);
+        resolve(); // WebChannel 是单向通信，假设发送成功
+      } else {
+        const error = new Error("未发现 AI 通道 (aiService/pyBridge)");
+        console.error(error.message);
+        reject(error);
+      }
+    } catch (error) {
+      console.error("发送消息失败:", error);
+      reject(error);
+    }
+  });
 };
 
-const sendMessage = () => {
+const sendMessage = async () => {
   const text = userInput.value.trim();
   const imagesToSend = imageTypes
     .map(type => pendingImages.value[type])
@@ -327,32 +382,91 @@ const sendMessage = () => {
 
   // 至少要有文字或图片之一
   if (!text && imagesToSend.length === 0) return;
+  
+  // 防止重复发送
+  if (isSending.value) return;
 
-  const pendingUrl = imagesToSend.find(img => !img.url);
-  if (pendingUrl) {
-    imageError.value = `请等待 ${imageTypeLabels[pendingUrl.type]} 图片上传完成`;
+  // 检查是否有正在上传的图片
+  const uploadingImage = imagesToSend.find(img => img.uploading);
+  if (uploadingImage) {
+    imageError.value = `请等待 ${imageTypeLabels[uploadingImage.type]} 图片上传完成`;
     return;
   }
 
-  const messageObj = {sender: "User"};
+  // 上传所有需要上传的图片
+  try {
+    for (const img of imagesToSend) {
+      if (img.needsUpload && !img.url) {
+        // 标记为上传中
+        img.uploading = true;
+        imageError.value = `正在上传 ${imageTypeLabels[img.type]} 图片...`;
+        
+        const result = await uploadImageToBackend({
+          type: img.type,
+          name: img.name,
+          data: img.preview
+        });
+        
+        const url = result?.image?.url;
+        if (!url) {
+          throw new Error(result?.content || '上传失败');
+        }
+        
+        // 更新图片信息
+        img.url = url;
+        img.uploading = false;
+        img.needsUpload = false;
+      }
+    }
+    imageError.value = '';
+  } catch (err) {
+    console.error('上传图片失败:', err);
+    imageError.value = err?.message || '上传图片失败，请重试。';
+    // 重置上传状态
+    imagesToSend.forEach(img => {
+      if (img.uploading) {
+        img.uploading = false;
+      }
+    });
+    return;
+  }
+
+  // 保存当前输入以备回滚
+  const savedInput = text;
+  const savedImages = [...imagesToSend];
+
+  const messageObj = {sender: "User", status: 'sending'};
   let displayText = text || '';
 
   if (imagesToSend.length > 0) {
-    const imageList = imagesToSend.map(img => img.name).join(', ');
-    displayText = displayText
-      ? `${displayText}\n[${imagesToSend.length}张图片: ${imageList}]`
-      : `[${imagesToSend.length}张图片: ${imageList}]`;
+    // 如果没有文字，显示简单的图片标记
+    if (!displayText) {
+      displayText = imagesToSend.length === 1 
+        ? '[1张图片]' 
+        : `[${imagesToSend.length}张图片]`;
+    }
+    // 如果有文字，不额外添加文件名列表，因为会显示图片缩略图
 
     if (imagesToSend.length === 1) {
       messageObj.imageData = imagesToSend[0].preview;
       messageObj.imageName = imagesToSend[0].name;
     } else {
-      messageObj.images = imagesToSend.map(img => ({data: img.preview, name: img.name}));
+      messageObj.images = imagesToSend.map(img => ({preview: img.preview, name: img.name}));
     }
   }
 
   messageObj.text = displayText;
+  messageObj.originalText = savedInput; // 保存原始输入
+  messageObj.originalImages = savedImages; // 保存原始图片
+  
+  const messageIndex = messages.value.length;
   messages.value.push(messageObj);
+
+  // 清空输入
+  userInput.value = '';
+  clearAllImages();
+  imageError.value = '';
+  isSending.value = true;
 
   nextTick(() => {
     const chatHistory = chatHistoryRef.value;
@@ -369,11 +483,65 @@ const sendMessage = () => {
       type: img.type,
     }));
   }
-  SendMessageToAI(text || '[图片]', extra);
 
-  userInput.value = '';
-  clearAllImages();
-  imageError.value = '';
+  // 设置超时
+  sendTimeout.value = setTimeout(() => {
+    if (messages.value[messageIndex]?.status === 'sending') {
+      messages.value[messageIndex].status = 'failed';
+      messages.value[messageIndex].error = '发送超时';
+      isSending.value = false;
+      messages.value.push({
+        sender: '系统',
+        text: '消息发送超时，请检查网络连接或重试。',
+        status: 'error'
+      });
+    }
+  }, MESSAGE_TIMEOUT);
+
+  try {
+    await SendMessageToAI(text || '[图片]', extra);
+    // WebChannel 是单向的，我们假设发送成功
+    // 实际的成功会在 receiveAIMessage 中确认
+    messages.value[messageIndex].status = 'sent';
+  } catch (error) {
+    console.error('发送消息失败:', error);
+    messages.value[messageIndex].status = 'failed';
+    messages.value[messageIndex].error = error.message || '发送失败';
+    
+    // 显示错误提示
+    messages.value.push({
+      sender: '系统',
+      text: `消息发送失败: ${error.message || '未知错误'}`,
+      status: 'error'
+    });
+  } finally {
+    if (sendTimeout.value) {
+      clearTimeout(sendTimeout.value);
+      sendTimeout.value = null;
+    }
+    isSending.value = false;
+  }
+};
+
+// 重试发送失败的消息
+const retryMessage = async (index) => {
+  const message = messages.value[index];
+  if (!message || message.status !== 'failed') return;
+
+  // 恢复输入
+  userInput.value = message.originalText || '';
+  
+  // 恢复图片
+  if (message.originalImages && message.originalImages.length > 0) {
+    message.originalImages.forEach(img => {
+      if (img.type && imageTypes.includes(img.type)) {
+        pendingImages.value[img.type] = img;
+      }
+    });
+  }
+
+  // 删除失败的消息
+  messages.value.splice(index, 1);
 };
 
 window.receiveAIMessage = (data) => {
@@ -404,14 +572,26 @@ window.receiveAIMessage = (data) => {
       return;
     }
 
+    // 收到 AI 回复时，将最后一条"发送中"的用户消息标记为成功
+    const lastUserMessage = messages.value.slice().reverse().find(m => m.sender === 'User');
+    if (lastUserMessage && (lastUserMessage.status === 'sending' || lastUserMessage.status === 'sent')) {
+      lastUserMessage.status = 'success';
+    }
+
     if (message.type === 'error') {
       console.error('AI处理错误:', message.content);
+      // 将用户消息标记为失败
+      if (lastUserMessage) {
+        lastUserMessage.status = 'failed';
+        lastUserMessage.error = message.content;
+      }
     }
 
     // 如果返回包含 image_base64 也展示图片
     const msgObj = {
       sender: "AI",
-      text: message.content || message.text || (message.type === 'image' ? '[图片]' : JSON.stringify(message))
+      text: message.content || message.text || (message.type === 'image' ? '[图片]' : JSON.stringify(message)),
+      status: 'success'
     };
     if (message.image_base64) {
       msgObj.imageData = message.image_base64;
@@ -430,7 +610,8 @@ window.receiveAIMessage = (data) => {
     console.error('处理AI消息失败:', e);
     messages.value.push({
       sender: "系统",
-      text: `无法处理AI响应: ${typeof data === 'string' ? data : JSON.stringify(data)}`
+      text: `无法处理AI响应: ${typeof data === 'string' ? data : JSON.stringify(data)}`,
+      status: 'error'
     });
   }
 };
@@ -513,6 +694,12 @@ onUnmounted(() => {
   }
   document.removeEventListener('click', handleGlobalClick, true);
   uploadResolvers.clear();
+  
+  // 清理超时定时器
+  if (sendTimeout.value) {
+    clearTimeout(sendTimeout.value);
+    sendTimeout.value = null;
+  }
 });
 </script>
 

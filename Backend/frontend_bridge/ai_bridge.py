@@ -6,7 +6,10 @@ from concurrent.futures import ThreadPoolExecutor
 from PySide6.QtCore import QObject, Signal, Slot, QTimer
 
 from Backend.utils.bootstrap import bootstrap
-from Backend.artificial_intelligence.service import handle_user_message, handle_image_upload
+from Backend.artificial_intelligence.service import (
+    handle_user_message,
+    handle_image_upload,
+)
 from Backend.artificial_intelligence.config.config import get_app_config
 from Backend.artificial_intelligence.models import get_chat_model
 from Backend.utils.logging import get_logger
@@ -71,15 +74,25 @@ class AIService(QObject):
             self._loop.call_soon(self._loop.stop)
             self._loop.run_forever()
         except Exception as e:
-            logger.exception("事件循环处理错误")
+            logger.exception(f"事件循环处理错误：{e}")
 
     @Slot(str)
     def send_message_to_ai(self, ai_message: str) -> None:
-        """发送消息到 AI（使用协程异步处理）"""
-        # 创建协程任务
+        """
+        发送消息到 AI（使用协程异步处理）
+
+        前端消息格式:
+        {
+            "message": "用户文本",
+            "session_id": "session_xxx",
+            "images": [
+                {"url": "https://...", "type": "product"},
+                {"data": "base64...", "type": "scene"}
+            ]
+        }
+        """
         task = self._loop.create_task(self._process_ai_message(ai_message))
         self._active_tasks.add(task)
-        # 任务完成后从集合中移除
         task.add_done_callback(self._active_tasks.discard)
 
     async def _process_ai_message(self, ai_message: str) -> None:
@@ -89,7 +102,9 @@ class AIService(QObject):
             payload = msg_data if isinstance(msg_data, dict) else {"message": msg_data}
 
             # 在线程池中执行阻塞的 AI 调用
-            result = await self._loop.run_in_executor(self._executor, handle_user_message, payload)
+            result = await self._loop.run_in_executor(
+                self._executor, handle_user_message, payload
+            )
 
             # 发送响应信号
             self.ai_response.emit(result)
@@ -107,6 +122,18 @@ class AIService(QObject):
 
     @Slot(str)
     def upload_image(self, payload: str) -> None:
+        """
+        上传图片
+
+        前端消息格式:
+        {
+            "data": "base64...",
+            "name": "image.png",
+            "type": "product",  // category: product | scene
+            "session_id": "session_xxx",
+            "token": "token_xxx"
+        }
+        """
         task = self._loop.create_task(self._process_image_upload(payload))
         self._active_tasks.add(task)
         task.add_done_callback(self._active_tasks.discard)
@@ -117,7 +144,9 @@ class AIService(QObject):
         except json.JSONDecodeError:
             data = {}
         try:
-            result = await self._loop.run_in_executor(self._executor, handle_image_upload, data)
+            result = await self._loop.run_in_executor(
+                self._executor, handle_image_upload, data
+            )
             self.ai_response.emit(result)
         except BaseException as exc:
             error_payload = json.dumps(

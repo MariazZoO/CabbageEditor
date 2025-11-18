@@ -16,7 +16,7 @@ coverage.xml
 htmlcov/
 */package-lock.json
 *.toml
-!Backend/artificial_intelligence/config/app_config.example.toml
+!Backend/artificial_intelligence/config/ai_settings.example.toml
 
 # ------------------------------
 # Virtual environments

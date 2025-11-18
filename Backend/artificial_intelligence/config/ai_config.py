@@ -14,6 +14,7 @@ import configparser
 AI_CONFIG_DIR = Path(__file__).parent
 AI_SETTINGS_FILE_INI = AI_CONFIG_DIR / "ai_settings.ini"
 AI_SETTINGS_FILE_TOML = AI_CONFIG_DIR / "ai_settings.toml"
+AI_SETTINGS_EXAMPLE_FILE = AI_CONFIG_DIR / "ai_settings.example.toml"
 USER_AI_CONFIG_FILE = Path.home() / ".coronaengine" / "ai_settings.toml"
 
 DEFAULT_SYSTEM_PROMPT = (
@@ -203,6 +204,8 @@ def _load_ai_config_data() -> Dict[str, Any]:
         project = _load_ini(AI_SETTINGS_FILE_INI)
     elif AI_SETTINGS_FILE_TOML.exists():
         project = _load_toml(AI_SETTINGS_FILE_TOML)
+    elif AI_SETTINGS_EXAMPLE_FILE.exists():
+        project = _load_toml(AI_SETTINGS_EXAMPLE_FILE)
     else:
         project = {}
 

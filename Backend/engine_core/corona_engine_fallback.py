@@ -8,7 +8,8 @@ from typing import List, Optional
 import warnings
 
 # 一次性警告：仅在原生模块不可用时才会导入本模块
-warnings.warn("[CoronaEngine][Fallback] 使用 Python fallback（未找到原生 CoronaEngine 模块），功能受限，仅用于开发/占位。", RuntimeWarning, stacklevel=2)
+warnings.warn("[CoronaEngine][Fallback] 使用 Python fallback（未找到原生 CoronaEngine 模块），功能受限，仅用于开发/占位。",
+              RuntimeWarning, stacklevel=2)
 
 
 # ================================
@@ -55,10 +56,12 @@ class Mechanics:
         print(f"[Fallback][Mechanics.__init__] geo={geo}")
         self._geo = geo
 
+
 class Optics:
     def __init__(self, geo: Geometry):
         print(f"[Fallback][Optics.__init__] geo={geo}")
         self._geo = geo
+
 
 class Acoustics:
     def __init__(self, geo: Geometry):
@@ -73,6 +76,7 @@ class Acoustics:
     def get_volume(self) -> float:
         print("[Fallback][Acoustics.get_volume]")
         return float(self._volume)
+
 
 class Kinematics:
     def __init__(self, geo: Geometry):
@@ -117,6 +121,7 @@ class ActorProfile:
         self.mechanics: Optional[Mechanics] = None
         self.kinematics: Optional[Kinematics] = None
         self.geometry: Optional[Geometry] = None
+
 
 class Actor:
     def __init__(self, path: str = ""):

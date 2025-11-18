@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from .scene_service import SceneApplicationService
 from .project_service import ProjectApplicationService
-from Backend.engine_core.scene_manager import SceneManager
+from Backend.engine_core.managers.scene_manager import SceneManager
 from Backend.utils.container import get_container
 from Backend.utils.logging import configure_logging
 

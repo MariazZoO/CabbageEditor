@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional
 
-from .engine_import import load_corona_engine
+from ..engine_import import load_corona_engine
 
 CoronaEngine = load_corona_engine()
 

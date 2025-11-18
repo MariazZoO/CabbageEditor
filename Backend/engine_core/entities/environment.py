@@ -1,6 +1,6 @@
 from typing import Any, Dict, List
 
-from .engine_import import load_corona_engine
+from ..engine_import import load_corona_engine
 
 CoronaEngine = load_corona_engine()
 
@@ -55,4 +55,3 @@ class Environment:
 
     def __repr__(self):
         return f"Environment(name={self.name})"
-

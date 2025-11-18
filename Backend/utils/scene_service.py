@@ -4,11 +4,9 @@ import json
 import os
 from typing import Any, Dict, List
 
-import os
-
-from Backend.engine_core.actor import Actor
-from Backend.engine_core.scene_manager import SceneManager
-from Backend.utils.logging import get_logger
+from ..engine_core.entities.actor import Actor
+from ..engine_core.managers.scene_manager import SceneManager
+from .logging import (get_logger)
 
 
 logger = get_logger(__name__)

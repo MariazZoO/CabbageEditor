@@ -1,11 +1,11 @@
 from typing import Any, Dict, Optional, List
 import os
 
-from .geometry import Geometry
-from .mechanics import Mechanics
-from .kinematics import Kinematics
-from .optics import Optics
-from .engine_import import load_corona_engine
+from ..components.geometry import Geometry
+from ..components.mechanics import Mechanics
+from ..components.kinematics import Kinematics
+from ..components.optics import Optics
+from ..engine_import import load_corona_engine
 
 CoronaEngine = load_corona_engine()
 

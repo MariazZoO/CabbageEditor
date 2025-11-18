@@ -9,6 +9,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.append(str(REPO_ROOT))
 
+# 使用绝对导入（可以作为脚本直接运行）
 from Backend.utils.bootstrap import bootstrap
 from Backend.artificial_intelligence.config.config import get_app_config
 

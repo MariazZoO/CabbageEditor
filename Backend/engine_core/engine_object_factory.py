@@ -13,8 +13,8 @@ if CoronaEngine is None:
 else:
     logger.info("使用 CoronaEngine / CoronaEngineFallback")
 
-from .actor import Actor
-from .camera import Camera
+from .entities.actor import Actor
+from .entities.camera import Camera
 
 T = TypeVar('T')
 
@@ -33,10 +33,10 @@ class EngineObjectFactory:
 
     @classmethod
     def _get_or_create(
-        cls,
-        cache: Dict[str, T],
-        key: str,
-        factory: Callable[[], T]
+            cls,
+            cache: Dict[str, T],
+            key: str,
+            factory: Callable[[], T]
     ) -> T:
         """
         通用缓存获取或创建逻辑
@@ -156,4 +156,3 @@ class EngineObjectFactory:
             cls._actor_cache.clear()
         if cache_type in ("camera", "all"):
             cls._camera_cache.clear()
-

@@ -1,6 +1,6 @@
 from typing import Any, Dict, List
 
-from .engine_import import load_corona_engine
+from ..engine_import import load_corona_engine
 
 CoronaEngine = load_corona_engine()
 
@@ -86,4 +86,3 @@ class Geometry:
 
     def __repr__(self):
         return f"Geometry(name={self.name}, path={self.model_path})"
-

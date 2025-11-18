@@ -1,7 +1,10 @@
 ﻿from typing import Any, Dict
-from .engine_import import load_corona_engine
+from ..engine_import import load_corona_engine
 from .geometry import Geometry
+
 CoronaEngine = load_corona_engine()
+
+
 class Kinematics:
     def __init__(self, geometry: Geometry, name: str = 'Kinematics'):
         if CoronaEngine is None:
@@ -13,17 +16,24 @@ class Kinematics:
         self.engine_obj = KinematicsCtor(geo_obj)
         self.name = name
         self.geometry = geometry
+
     def set_animation(self, animation_index: int):
         self.engine_obj.set_animation(animation_index)
+
     def play_animation(self, speed: float = 1.0):
         self.engine_obj.play_animation(speed)
+
     def stop_animation(self):
         self.engine_obj.stop_animation()
+
     def get_animation_index(self) -> int:
         return self.engine_obj.get_animation_index()
+
     def get_current_time(self) -> float:
         return self.engine_obj.get_current_time()
+
     def to_dict(self) -> Dict[str, Any]:
         return {'name': self.name, 'engine_obj': self.engine_obj}
+
     def __repr__(self):
         return f'Kinematics(name={self.name})'

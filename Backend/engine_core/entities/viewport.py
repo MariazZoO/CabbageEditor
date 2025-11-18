@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional
 
-from .engine_import import load_corona_engine
+from ..engine_import import load_corona_engine
 
 CoronaEngine = load_corona_engine()
 
@@ -136,4 +136,3 @@ class Viewport:
 
     def __repr__(self):
         return f"Viewport(name={self.name}, width={self.width}, height={self.height})"
-

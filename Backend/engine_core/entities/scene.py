@@ -1,11 +1,12 @@
 from typing import List, Any, Optional
-from .geometry import Geometry
+from ..components.geometry import Geometry
 from .actor import Actor
 from .camera import Camera
 from .environment import Environment
 from .viewport import Viewport
 
-from .engine_import import load_corona_engine
+from ..engine_import import load_corona_engine
+
 CoronaEngine = load_corona_engine()
 
 
@@ -37,7 +38,8 @@ class Scene:
     def set_environment(self, environment: Environment) -> None:
         self._environment = environment
         if hasattr(self.engine_scene, 'set_environment'):
-            self.engine_scene.set_environment(environment.engine_obj if hasattr(environment, 'engine_obj') else environment)
+            self.engine_scene.set_environment(
+                environment.engine_obj if hasattr(environment, 'engine_obj') else environment)
 
     def get_environment(self) -> Optional[Environment]:
         return self._environment
@@ -92,6 +94,3 @@ class Scene:
             if actor.name == actor_name:
                 return actor
         return None
-
-
-

@@ -1,5 +1,6 @@
 # AutoGen core and agent capabilities
 pyautogen
+dashscope
 
 # AutoGen extensions for OpenAI and MCP
 autogen-ext[openai,mcp]
@@ -18,6 +19,7 @@ cryptography
 
 # HTTP client
 httpx
+flask
 
 # LangChain v1.0
 langchain

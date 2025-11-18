@@ -30,6 +30,7 @@ from .ai_config import (
     ToolModelConfig,
     MediaConfig,
     MediaToolConfig,
+    TTSConfig,
 )
 
 _CACHE: Optional["AppConfig"] = None
@@ -54,6 +55,7 @@ class AppConfig:
     chat: ChatModelConfig
     tool_models: Dict[str, ToolModelConfig]
     media: MediaConfig
+    tts: TTSConfig
     runtime: RuntimeConfig
     paths: PathsConfig
 
@@ -80,6 +82,7 @@ def _build_app_config() -> AppConfig:
         chat=ai_config.chat,
         tool_models=ai_config.tool_models,
         media=ai_config.media,
+        tts=ai_config.tts,
         runtime=global_config.runtime,
         paths=global_config.paths,
     )
@@ -105,6 +108,7 @@ __all__ = [
     "ToolModelConfig",
     "MediaConfig",
     "MediaToolConfig",
+    "TTSConfig",
     "RuntimeConfig",
     "PathsConfig",
     "get_app_config",

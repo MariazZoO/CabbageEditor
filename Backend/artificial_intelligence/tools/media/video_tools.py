@@ -19,36 +19,69 @@ from Backend.artificial_intelligence.tools.session import get_current_session
 
 
 class VideoGenerationInput(BaseModel):
-    """视频生成输入参数"""
+    """视频生成输入参数
+
+    此类定义了图生视频功能所需的所有参数。
+    支持基于单张图片和文本提示词生成动态视频内容。
+    """
 
     prompt: str = Field(
         ...,
-        description="视频生成提示词，描述要生成的视频内容、动作、场景等",
+        description=(
+            "视频生成提示词，用于描述要生成的视频内容。"
+            "应详细描述视频中的动作、场景、运动方式、氛围等元素。"
+            "例如：'镜头缓慢推进，树叶在微风中轻轻摇曳，阳光透过枝叶洒下斑驳光影'。"
+            "提示词越详细，生成的视频效果越精确。"
+        ),
     )
     image_url: str = Field(
         ...,
         description=(
-            "输入图片的 URL，支持以下格式："
-            "1) autosave:// URL（会话中上传或生成的图片）；"
-            "2) data:image/...;base64,... URI；"
-            "3) 本地文件路径"
+            "输入图片的 URL，作为视频生成的起始帧。支持以下三种格式："
+            "\n1) autosave:// URL - 当前会话中上传或 AI 生成的图片，例如 'autosave://session_id/generated/image.png'；"
+            "\n2) data:image/...;base64,... - Base64 编码的图片数据 URI；"
+            "\n3) 本地文件路径 - 系统中的绝对或相对文件路径。"
+            "\n注意：图片会被解析并转换为模型可接受的格式，如果图片无法加载将返回错误。"
         ),
     )
     session_id: str | None = Field(
         default=None,
-        description="会话 ID；若省略则自动使用当前聊天会话",
+        description=(
+            "会话 ID，用于标识和隔离不同用户或对话的媒体资源。"
+            "如果省略此参数，系统会自动使用当前活跃的聊天会话 ID。"
+            "生成的视频将保存在对应会话的 generated 目录下。"
+        ),
     )
     resolution: str = Field(
         default="720P",
-        description="视频分辨率，支持 480P、720P、1080P",
+        description=(
+            "视频输出分辨率，影响视频清晰度和文件大小。"
+            "支持三种规格："
+            "\n- '480P'：标清，文件较小，生成速度较快；"
+            "\n- '720P'：高清，平衡质量与性能（默认推荐）；"
+            "\n- '1080P'：全高清，最佳画质但文件较大，生成时间较长。"
+            "\n注意：必须使用准确的字符串值（区分大小写），否则会返回参数错误。"
+        ),
     )
     prompt_extend: bool = Field(
         default=True,
-        description="是否进行提示词扩展以获得更好的生成效果",
+        description=(
+            "是否启用提示词智能扩展功能。"
+            "当设置为 True 时，模型会自动优化和扩展用户的提示词，补充更多细节以提升生成质量。"
+            "扩展后的提示词会在返回结果的 'actual_prompt' 字段中体现，"
+            "原始提示词会保留在 'orig_prompt' 字段中。"
+            "建议保持默认开启以获得更好的视频效果。"
+        ),
     )
     download_video: bool = Field(
         default=True,
-        description="是否自动下载视频到本地（默认为 True）",
+        description=(
+            "是否自动下载生成的视频到本地存储。"
+            "当设置为 True 时，视频会从云端下载到 autosave/<session_id>/generated/ 目录，"
+            "并在返回结果的 'local_video' 字段中提供本地路径、文件大小等信息。"
+            "如果下载失败，不会影响主流程，但会在 'download_error' 字段中记录错误信息。"
+            "设置为 False 仅返回云端视频 URL，不进行本地存储。"
+        ),
     )
 
 
@@ -200,7 +233,7 @@ def load_video_tools(config: AppConfig) -> List[StructuredTool]:
             )
 
     tool = StructuredTool(
-        name="generate_video",
+        name="generate_video_from_image",
         description=(
             "根据图片和文本提示词生成视频（图生视频）。"
             "输入需要包含："
@@ -212,6 +245,7 @@ def load_video_tools(config: AppConfig) -> List[StructuredTool]:
         args_schema=VideoGenerationInput,
         func=_generate_video,
     )
+
     return [tool]
 
 

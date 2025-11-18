@@ -24,6 +24,12 @@ type = "dashscope"
 base_url = "https://dashscope-intl.aliyuncs.com"
 api_key = "sk-your-dashscope-key"
 
+[[providers]]
+name = "doubao"
+type = "openai-compatible"
+base_url = "https://ark.cn-beijing.volces.com/api/v3"
+api_key = "sk-your-doubao-key"
+
 [runtime]
 enable_gpu = false
 log_level = "INFO"
@@ -51,3 +57,9 @@ base_url = "https://api.lingyaai.cn/v1/images/generations"
 enable = false
 provider = "dashscope"
 model = "wan2.2-i2v-flash"
+
+[tts]
+# 火山引擎 TTS 配置
+# 获取方式: https://www.volcengine.com/docs/6561/196768
+appid = "your-tts-appid"
+token = "your-tts-token"

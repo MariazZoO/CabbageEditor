@@ -30,14 +30,32 @@ def extract_text(messages: List[Any]) -> str:
 
 
 def build_user_message(request: IncomingRequest, uploads: List[str]) -> Dict[str, Any]:
-    blocks: List[Dict[str, str]] = []
+    blocks: List[Dict[str, Any]] = []
     text = request.text.strip()
     if text:
         blocks.append({"type": "text", "text": text})
-    # 添加图片附件为image_url类型
+    # 添加图片附件为image_url类型（符合OpenAI API规范）
     for attachment in request.images:
-        if attachment.url:
-            blocks.append({"type": "image_url", "image_url": attachment.url})
+        image_url = None
+        # 优先使用 data（base64），其次使用 url
+        if attachment.data:
+            # 如果已经是 data URI 格式，直接使用
+            if attachment.data.startswith("data:image"):
+                image_url = attachment.data
+            else:
+                # 否则假设是 base64 编码，添加前缀
+                image_url = f"data:image/png;base64,{attachment.data}"
+        elif attachment.url:
+            # 将 URL 转换为 base64 data URI
+            data_url = _MEDIA_STORE.load_image_data_url(attachment.url, use_cache=True)
+            if data_url:
+                image_url = data_url
+            else:
+                # 如果转换失败，仍然尝试使用原始 URL（某些 API 可能支持）
+                image_url = attachment.url
+
+        if image_url:
+            blocks.append({"type": "image_url", "image_url": {"url": image_url}})
     # 添加上传说明
     for note in uploads:
         blocks.append({"type": "text", "text": note})
@@ -70,8 +88,16 @@ def render_message_content(content: Any) -> str:
             if isinstance(block, dict):
                 if block.get("type") == "text" and block.get("text"):
                     parts.append(str(block["text"]))
-                elif block.get("type") == "image_url" and block.get("image_url"):
-                    parts.append(f"[image] {block['image_url']}")
+                elif block.get("type") == "image_url":
+                    # 支持标准格式: {"type": "image_url", "image_url": {"url": "..."}}
+                    image_url_data = block.get("image_url")
+                    if isinstance(image_url_data, dict):
+                        url = image_url_data.get("url")
+                        if url:
+                            parts.append(f"[image] {url}")
+                    elif isinstance(image_url_data, str):
+                        # 兼容旧格式: {"type": "image_url", "image_url": "..."}
+                        parts.append(f"[image] {image_url_data}")
                 elif block.get("type") == "image" and block.get("url"):
                     # 兼容旧格式
                     parts.append(f"[image] {block['url']}")

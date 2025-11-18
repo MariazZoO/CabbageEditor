@@ -15,22 +15,64 @@ from Backend.artificial_intelligence.tools.session import get_current_session
 
 
 class ImageGenerationInput(BaseModel):
-    prompt: str = Field(..., description="图片生成提示词，描述要生成的图片内容、风格、细节等")
+    """图片生成输入参数
+
+    此类定义了 AI 图片生成功能所需的所有参数。
+    支持三种生成模式：纯文本生成、基于产品/场景图片的合成编辑、以及自动引用会话历史图片。
+    """
+
+    prompt: str = Field(
+        ...,
+        description=(
+            "图片生成提示词，用于描述要生成的图片内容。"
+            "应详细描述图片的主题、风格、色调、构图、细节等元素。"
+            "例如：'一个现代简约风格的客厅，米白色沙发，木质茶几，阳光从落地窗洒入，暖色调'。"
+            "提示词越详细，生成的图片效果越符合预期。"
+        ),
+    )
     session_id: str | None = Field(
         default=None,
-        description="会话 ID；若省略则自动使用当前聊天会话",
+        description=(
+            "会话 ID，用于标识和隔离不同用户或对话的媒体资源。"
+            "如果省略此参数，系统会自动使用当前活跃的聊天会话 ID。"
+            "生成的图片将保存在对应会话的 generated 目录下，"
+            "并可在后续操作中通过 autosave:// URL 引用。"
+        ),
     )
     product_url: str | None = Field(
         default=None,
-        description="可选：产品图片的 URL（autosave://...），用于图片合成或编辑。若不提供则使用纯文本生成",
+        description=(
+            "可选：产品图片的 URL，用于图片合成或编辑场景。"
+            "支持 autosave:// 格式的 URL（例如 'autosave://session_id/uploads/product.jpg'），"
+            "指向会话中已上传或生成的产品图片。"
+            "当提供此参数时，AI 会将产品融入到生成的场景中。"
+            "若不提供且 use_references=False，则进行纯文本生成。"
+            "注意：此参数与 use_references 互斥，明确指定的 URL 优先级更高。"
+        ),
     )
     scene_url: str | None = Field(
         default=None,
-        description="可选：场景图片的 URL（autosave://...），用于图片合成或编辑。若不提供则使用纯文本生成",
+        description=(
+            "可选：场景图片的 URL，用于图片合成或编辑场景。"
+            "支持 autosave:// 格式的 URL（例如 'autosave://session_id/uploads/scene.jpg'），"
+            "指向会话中已上传或生成的场景背景图片。"
+            "当提供此参数时，AI 会基于该场景进行图片生成或编辑。"
+            "若不提供且 use_references=False，则进行纯文本生成。"
+            "注意：此参数与 use_references 互斥，明确指定的 URL 优先级更高。"
+        ),
     )
     use_references: bool = Field(
         default=False,
-        description="是否自动使用会话中最近上传的产品和场景图片。设为 True 时会查找最近的上传图片，False 则仅使用明确指定的图片",
+        description=(
+            "是否自动使用会话中最近上传的产品和场景图片作为参考。"
+            "当设置为 True 时，系统会自动查找当前会话 uploads 目录下："
+            "\n- 最近上传的 'product' 类别图片作为产品参考"
+            "\n- 最近上传的 'scene' 类别图片作为场景参考"
+            "\n设置为 False（默认）时，仅使用明确通过 product_url 和 scene_url 指定的图片。"
+            "\n注意：如果同时设置了 use_references=True 和明确的图片 URL，"
+            "明确指定的 URL 优先级更高，自动查找仅作为后备方案。"
+            "\n这个功能适用于连续对话场景，用户无需重复指定图片路径。"
+        ),
     )
 
 

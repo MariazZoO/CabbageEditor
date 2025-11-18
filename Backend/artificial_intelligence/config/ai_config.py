@@ -73,12 +73,20 @@ class MediaConfig:
 
 
 @dataclass(frozen=True)
+class TTSConfig:
+    """TTS 配置"""
+    appid: str | None = None
+    token: str | None = None
+
+
+@dataclass(frozen=True)
 class AIConfig:
     """AI 配置"""
     providers: Dict[str, ProviderConfig]
     chat: ChatModelConfig
     tool_models: Dict[str, ToolModelConfig]
     media: MediaConfig
+    tts: TTSConfig
 
 
 # ---------------------------------------------------------------------------
@@ -294,6 +302,27 @@ def _load_media_config(raw: Mapping[str, Any]) -> MediaConfig:
     return MediaConfig(image=image, video=video)
 
 
+def _load_tts_config(raw: Mapping[str, Any] | None) -> TTSConfig:
+    """加载 TTS 配置"""
+    if not isinstance(raw, Mapping):
+        return TTSConfig()
+    
+    appid = raw.get("appid")
+    appid_env = raw.get("appid_env")
+    if appid_env:
+        appid = os.getenv(str(appid_env), appid)
+    
+    token = raw.get("token")
+    token_env = raw.get("token_env")
+    if token_env:
+        token = os.getenv(str(token_env), token)
+    
+    return TTSConfig(
+        appid=appid,
+        token=token,
+    )
+
+
 # ---------------------------------------------------------------------------
 # 公共函数
 # ---------------------------------------------------------------------------
@@ -319,12 +348,14 @@ def _build_ai_config() -> AIConfig:
 
     tool_models = _load_tool_models(llm_section.get("tool_models", {}))
     media = _load_media_config(raw.get("media", {}))
+    tts = _load_tts_config(raw.get("tts"))
 
     return AIConfig(
         providers=providers,
         chat=chat,
         tool_models=tool_models,
         media=media,
+        tts=tts,
     )
 
 
@@ -350,6 +381,7 @@ __all__ = [
     "ToolModelConfig",
     "MediaConfig",
     "MediaToolConfig",
+    "TTSConfig",
     "get_ai_config",
     "reload_ai_config",
 ]

@@ -10,8 +10,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.append(str(REPO_ROOT))
 
-# 2. 加载配置
-from Backend.artificial_intelligence.config.config import get_app_config
+# 2. 加载全局配置
+from config.app_config import get_app_config
 app_config = get_app_config()
 
 # 3. 设置环境变量（必须在导入 Qt 之前）

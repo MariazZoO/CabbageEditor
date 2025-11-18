@@ -1,25 +1,17 @@
-from .config import (
-    AppConfig,
-    ProviderConfig,
-    ChatModelConfig,
-    ToolModelConfig,
-    MediaConfig,
-    MediaToolConfig,
-    RuntimeConfig,
-    PathsConfig,
-    get_app_config,
-    reload_app_config,
-)
+"""
+AI 配置模块
+"""
+from .ai_config import get_ai_config, reload_ai_config, AIConfig
+from .ai_config import ProviderConfig, ChatModelConfig, ToolModelConfig, MediaConfig, MediaToolConfig
 
 __all__ = [
-    "AppConfig",
+    "get_ai_config",
+    "reload_ai_config",
+    "AIConfig",
     "ProviderConfig",
     "ChatModelConfig",
     "ToolModelConfig",
     "MediaConfig",
     "MediaToolConfig",
-    "RuntimeConfig",
-    "PathsConfig",
-    "get_app_config",
-    "reload_app_config",
 ]
+

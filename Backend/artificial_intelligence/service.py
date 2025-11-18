@@ -20,8 +20,7 @@ from Backend.artificial_intelligence.agent.adapters import (
 )
 from Backend.artificial_intelligence.config.config import get_app_config
 from Backend.artificial_intelligence.models import get_chat_model
-from Backend.artificial_intelligence.tools.storage import get_image_store
-from Backend.artificial_intelligence.tools.video_storage import get_video_store
+from Backend.artificial_intelligence.storage import get_media_store
 from Backend.artificial_intelligence.tools.session import (
     reset_current_session,
     set_current_session,
@@ -32,13 +31,12 @@ from Backend.artificial_intelligence.agent.requests import (
     normalize_request,
     normalize_upload_request,
 )
-from Backend.artificial_intelligence.tools.image_handler import register_uploads
-from Backend.artificial_intelligence.tools.media.image_tools import _LingyaImageClient
-from Backend.artificial_intelligence.models.video_client import DashScopeVideoClient
+
+from Backend.artificial_intelligence.models.client_image import LingyaImageClient
+from Backend.artificial_intelligence.models.client_video import DashScopeVideoClient
 
 bootstrap()
-_IMAGE_STORE = get_image_store()
-_VIDEO_STORE = get_video_store()
+_MEDIA_STORE = get_media_store()
 
 
 def handle_image_generation(payload: Any) -> str:
@@ -83,7 +81,7 @@ def handle_image_generation(payload: Any) -> str:
             raise RuntimeError(f"提供商 '{image_cfg.provider}' 配置不完整")
 
         # 创建客户端
-        client = _LingyaImageClient(
+        client = LingyaImageClient(
             provider=provider,
             model=image_cfg.model,
             base_url=image_cfg.base_url,
@@ -96,28 +94,28 @@ def handle_image_generation(payload: Any) -> str:
             )
 
             product_url = product_url or _latest_upload_url(
-                _IMAGE_STORE, session_id, "product"
+                _MEDIA_STORE, session_id, "product"
             )
             scene_url = scene_url or _latest_upload_url(
-                _IMAGE_STORE, session_id, "scene"
+                _MEDIA_STORE, session_id, "scene"
             )
 
         # 生成图像
         image_b64, mime_type = client.generate(
             prompt=prompt,
-            store=_IMAGE_STORE,
+            store=_MEDIA_STORE,
             product_url=product_url,
             scene_url=scene_url,
         )
 
         # 保存生成的图像
-        stored = _IMAGE_STORE.save_generated(
+        stored = _MEDIA_STORE.save_generated_image(
             session_id=session_id,
             data_base64=f"data:{mime_type};base64,{image_b64}",
             mime_type=mime_type,
         )
 
-        image_url = _IMAGE_STORE.build_url(stored)
+        image_url = _MEDIA_STORE.build_image_url(stored)
 
         # 构建响应
         response = {
@@ -154,7 +152,7 @@ def handle_video_generation(payload: Any) -> str:
     请求格式:
     {
         "prompt": "视频生成提示词",
-        "image_url": "autosave://...",     // 输入图片URL
+        "image_url": "autosave://...",     // 输入图片URL（支持 autosave://、file://、http(s)://、data URI、本地路径）
         "session_id": "session_xxx",       // 可选
         "resolution": "720P",              // 可选：480P/720P/1080P
         "prompt_extend": true,             // 可选：是否扩展提示词
@@ -200,36 +198,17 @@ def handle_video_generation(payload: Any) -> str:
             base_url=video_cfg.base_url,
         )
 
-        # 加载图片
-        import base64
-        from pathlib import Path
+        # 解析图片 URL（使用统一的工具函数）
+        from Backend.artificial_intelligence.models.video_utils import resolve_image_url
 
-        image_b64 = None
-
-        # 处理 data URI (base64)
-        if image_url.startswith("data:"):
-            if ";base64," in image_url:
-                image_b64 = image_url.split(";base64,", 1)[1]
-
-        # 处理 autosave:// URL
-        elif image_url.startswith("autosave://"):
-            stored = _IMAGE_STORE.resolve_url(image_url)
-            if stored and stored.path.exists():
-                image_b64 = base64.b64encode(stored.path.read_bytes()).decode("utf-8")
-
-        # 尝试作为本地路径
-        else:
-            candidate = Path(image_url)
-            if candidate.exists():
-                image_b64 = base64.b64encode(candidate.read_bytes()).decode("utf-8")
-
-        if not image_b64:
+        resolved_url = resolve_image_url(image_url, _MEDIA_STORE)
+        if not resolved_url:
             raise ValueError(f"无法加载图片：{image_url}")
 
         # 生成视频
         result = client.generate_video_from_image(
             prompt=prompt,
-            image_b64=image_b64,
+            image_url=resolved_url,
             resolution=resolution,
             prompt_extend=prompt_extend,
             max_wait_seconds=600,
@@ -262,7 +241,7 @@ def handle_video_generation(payload: Any) -> str:
         # 如果需要，下载视频到本地
         if download_video and response["video_url"]:
             try:
-                stored_video = _VIDEO_STORE.download_and_save(
+                stored_video = _MEDIA_STORE.download_and_save_video(
                     session_id=session_id,
                     video_url=response["video_url"],
                     task_id=response["task_id"],
@@ -274,7 +253,7 @@ def handle_video_generation(payload: Any) -> str:
                 response["local_video"] = {
                     "name": stored_video.name,
                     "path": str(stored_video.path),
-                    "url": _VIDEO_STORE.build_url(stored_video),
+                    "url": _MEDIA_STORE.build_video_url(stored_video),
                     "file_size_mb": stored_video.file_size_mb,
                 }
             except Exception as e:
@@ -305,13 +284,13 @@ def invoke_messages(messages: List[BaseMessage]) -> Dict[str, Any]:
 
 def handle_image_upload(payload: Any) -> str:
     request = normalize_upload_request(payload, default_session_id())
-    stored = _IMAGE_STORE.save_upload(
+    stored = _MEDIA_STORE.save_upload(
         session_id=request.session_id,
         data=request.data,
         category=request.category,
         original_name=request.name,
     )
-    url = _IMAGE_STORE.build_url(stored)
+    url = _MEDIA_STORE.build_image_url(stored)
     response = {
         "type": "image_upload",
         "status": "success",
@@ -331,7 +310,7 @@ def handle_user_message(message: Any) -> str:
     request = normalize_request(message, default_session_id())
     stored_history = get_history(request.session_id)
 
-    upload_notes = register_uploads(request)
+    upload_notes = _MEDIA_STORE.register_uploads(request)
     user_message = build_user_message(request, upload_notes)
     # user_message为dict，需转为BaseMessage
     pending_history = [*stored_history, HumanMessage(content=user_message["content"])]

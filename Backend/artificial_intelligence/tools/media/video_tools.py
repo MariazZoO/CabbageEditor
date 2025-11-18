@@ -5,21 +5,16 @@
 
 from __future__ import annotations
 
-import base64
 import json
-from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
 from Backend.artificial_intelligence.config.config import AppConfig, MediaToolConfig
-from Backend.artificial_intelligence.models.video_client import DashScopeVideoClient
-from Backend.artificial_intelligence.tools.storage import (
-    get_image_store,
-    AUTOSAVE_URL_SCHEME,
-)
-from Backend.artificial_intelligence.tools.video_storage import get_video_store
+from Backend.artificial_intelligence.models.client_video import DashScopeVideoClient
+from Backend.artificial_intelligence.models.video_utils import resolve_image_url
+from Backend.artificial_intelligence.storage import get_media_store
 from Backend.artificial_intelligence.tools.session import get_current_session
 
 
@@ -77,8 +72,7 @@ def load_video_tools(config: AppConfig) -> List[StructuredTool]:
         model=video_cfg.model or "wan2.2-i2v-flash",
         base_url=video_cfg.base_url,
     )
-    image_store = get_image_store()
-    video_store = get_video_store()
+    media_store = get_media_store()
 
     def _generate_video(
         prompt: str,
@@ -98,17 +92,31 @@ def load_video_tools(config: AppConfig) -> List[StructuredTool]:
             download_video=download_video,
         )
 
-        session_id = data.session_id or get_current_session()
+        # 使用不同的变量名避免覆盖参数
+        active_session_id = data.session_id or get_current_session()
 
-        # 加载图片
-        image_b64 = _load_image_base64(image_store, data.image_url)
-        if not image_b64:
+        # 验证分辨率参数
+        valid_resolutions = {"480P", "720P", "1080P"}
+        if data.resolution not in valid_resolutions:
+            return json.dumps(
+                {
+                    "type": "video_generation",
+                    "status": "failed",
+                    "error": f"无效的分辨率: {data.resolution}，支持的值: {', '.join(valid_resolutions)}",
+                    "session_id": active_session_id,
+                },
+                ensure_ascii=False,
+            )
+
+        # 准备图片 URL
+        image_url = resolve_image_url(data.image_url, media_store)
+        if not image_url:
             return json.dumps(
                 {
                     "type": "video_generation",
                     "status": "failed",
                     "error": f"无法加载图片：{data.image_url}",
-                    "session_id": session_id,
+                    "session_id": active_session_id,
                 },
                 ensure_ascii=False,
             )
@@ -117,7 +125,7 @@ def load_video_tools(config: AppConfig) -> List[StructuredTool]:
         try:
             result = client.generate_video_from_image(
                 prompt=data.prompt,
-                image_b64=image_b64,
+                image_url=image_url,
                 resolution=data.resolution,
                 prompt_extend=data.prompt_extend,
                 max_wait_seconds=600,
@@ -134,7 +142,7 @@ def load_video_tools(config: AppConfig) -> List[StructuredTool]:
                 "video_url": result.get("output", {}).get("video_url"),
                 "task_id": result.get("task_id"),
                 "resolution": data.resolution,
-                "session_id": session_id,
+                "session_id": active_session_id,
             }
 
             # 添加可选字段
@@ -149,8 +157,8 @@ def load_video_tools(config: AppConfig) -> List[StructuredTool]:
             # 如果需要，下载视频到本地
             if download_video and payload["video_url"]:
                 try:
-                    stored_video = video_store.download_and_save(
-                        session_id=session_id,
+                    stored_video = media_store.download_and_save_video(
+                        session_id=active_session_id,
                         video_url=payload["video_url"],
                         task_id=payload["task_id"],
                         prompt=data.prompt,
@@ -161,22 +169,32 @@ def load_video_tools(config: AppConfig) -> List[StructuredTool]:
                     payload["local_video"] = {
                         "name": stored_video.name,
                         "path": str(stored_video.path),
-                        "url": video_store.build_url(stored_video),
+                        "url": media_store.build_video_url(stored_video),
                         "file_size_mb": stored_video.file_size_mb,
                     }
                 except Exception as e:
-                    # 下载失败不影响主流程
+                    # 下载失败不影响主流程，但记录错误信息
+                    import logging
+
+                    logging.getLogger(__name__).warning(
+                        f"视频下载失败 (session={active_session_id}, task={payload['task_id']}): {e}"
+                    )
                     payload["download_error"] = str(e)
 
             return json.dumps(payload, ensure_ascii=False)
 
         except Exception as e:
+            import logging
+
+            logging.getLogger(__name__).error(
+                f"视频生成失败 (session={active_session_id}): {e}", exc_info=True
+            )
             return json.dumps(
                 {
                     "type": "video_generation",
                     "status": "failed",
                     "error": str(e),
-                    "session_id": session_id,
+                    "session_id": active_session_id,
                 },
                 ensure_ascii=False,
             )
@@ -207,36 +225,6 @@ def _is_media_tool_enabled(cfg: MediaToolConfig, config: AppConfig) -> bool:
         return False
     provider = config.providers[cfg.provider]
     return bool(provider.api_key)
-
-
-def _load_image_base64(store, source: Optional[str]) -> Optional[str]:
-    """从 autosave:// URL、base64 URI 或本地路径加载图片并转换为 base64。"""
-    if not source:
-        return None
-
-    # 处理 data URI (base64)
-    if source.startswith("data:"):
-        # 格式：data:image/png;base64,iVBORw0KGgo...
-        if ";base64," in source:
-            # 提取 base64 部分
-            return source.split(";base64,", 1)[1]
-        else:
-            # 不支持非 base64 的 data URI
-            return None
-
-    # 处理 autosave:// URL
-    if source.startswith(AUTOSAVE_URL_SCHEME):
-        stored = store.resolve_url(source)
-        if stored and stored.path.exists():
-            return base64.b64encode(stored.path.read_bytes()).decode("utf-8")
-        return None
-
-    # 尝试作为本地路径
-    candidate = Path(source)
-    if candidate.exists():
-        return base64.b64encode(candidate.read_bytes()).decode("utf-8")
-
-    return None
 
 
 __all__ = ["load_video_tools"]

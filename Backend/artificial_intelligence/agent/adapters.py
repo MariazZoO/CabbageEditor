@@ -6,10 +6,9 @@ from typing import Any, Dict, List, Sequence
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
 from Backend.artificial_intelligence.agent.requests import IncomingRequest
-from Backend.artificial_intelligence.tools.image_handler import (
-    load_image_data_url,
-    path_to_url,
-)
+from Backend.artificial_intelligence.storage import get_media_store
+
+_MEDIA_STORE = get_media_store()
 
 
 def extract_text(messages: List[Any]) -> str:
@@ -97,13 +96,13 @@ def extract_image_payload(messages: Sequence[Any]) -> Dict[str, Any] | None:
                 continue
             if isinstance(data, dict) and data.get("type") == "image":
                 if "image_base64" not in data:
-                    data_url = load_image_data_url(
+                    data_url = _MEDIA_STORE.load_image_data_url(
                         data.get("image_url") or data.get("image_path")
                     )
                     if data_url:
                         data["image_base64"] = data_url
                 if "image_url" not in data:
-                    url = path_to_url(data.get("image_path"))
+                    url = _MEDIA_STORE.path_to_url(data.get("image_path"))
                     if url:
                         data["image_url"] = url
                 return data

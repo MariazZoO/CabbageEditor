@@ -35,4 +35,3 @@ def get_default_paths() -> PathsConfig:
         autosave_dir=autosave_dir,
         config_dir=config_dir,
     )
-

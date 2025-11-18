@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from Backend.artificial_intelligence.config.config import get_app_config
+from config.app_config import get_app_config
 
 _CONFIGURED = False
 

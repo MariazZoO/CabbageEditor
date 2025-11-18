@@ -22,6 +22,16 @@ USER_CONFIG_FILE = Path.home() / ".coronaengine" / "settings.toml"
 _CACHE: Optional["AppConfig"] = None
 
 
+# ========== 硬编码默认配置 ==========
+DEFAULT_CONFIG = {
+    "runtime": {
+        "enable_gpu": False,
+        "log_level": "INFO",
+        "debug_mode": False,
+    }
+}
+
+
 @dataclass(frozen=True)
 class AppConfig:
     """应用全局配置"""
@@ -103,22 +113,23 @@ def _apply_env_overrides(data: Dict[str, Any]) -> None:
 
 
 def _load_config_data() -> Dict[str, Any]:
-    """加载配置数据"""
-    # 优先加载 INI 格式
+    """加载配置数据(优先级:环境变量 > 用户配置 > 项目配置 > 硬编码默认值)"""
+    # 1. 从硬编码默认值开始
+    merged = _deep_merge({}, DEFAULT_CONFIG)
+
+    # 2. 合并项目配置文件
     if SETTINGS_FILE_INI.exists():
         project = _load_ini(SETTINGS_FILE_INI)
+        merged = _deep_merge(merged, project)
     elif SETTINGS_FILE_TOML.exists():
         project = _load_toml(SETTINGS_FILE_TOML)
-    else:
-        project = {}
+        merged = _deep_merge(merged, project)
 
-    # 加载用户配置
+    # 3. 合并用户配置
     user = _load_toml(USER_CONFIG_FILE)
+    merged = _deep_merge(merged, user)
 
-    # 合并配置
-    merged = _deep_merge(project, user)
-
-    # 应用环境变量覆盖
+    # 4. 应用环境变量覆盖
     _apply_env_overrides(merged)
 
     return merged
@@ -160,7 +171,7 @@ def _build_app_config() -> AppConfig:
 
 
 def get_app_config() -> AppConfig:
-    """获取应用配置（单例）"""
+    """获取应用配置(单例)"""
     global _CACHE
     if _CACHE is None:
         _CACHE = _build_app_config()
@@ -179,4 +190,3 @@ __all__ = [
     "get_app_config",
     "reload_app_config",
 ]
-

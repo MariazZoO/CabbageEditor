@@ -20,6 +20,7 @@ cryptography
 # HTTP client
 httpx
 flask
+flask-cors
 
 # LangChain v1.0
 langchain

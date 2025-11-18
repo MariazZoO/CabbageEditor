@@ -1,7 +1,5 @@
 import os
 import sys
-import importlib.util
-import glob
 import queue
 from pathlib import Path
 
@@ -23,93 +21,82 @@ if not app_config.runtime.enable_gpu:
     os.environ["QT_DISABLE_DIRECT_COMPOSITION"] = "1"
     print("GPU 已禁用 - 使用软件渲染模式")
 
+# 确保 repo_root 在 sys.path 中
 sys.path.append(str(app_config.paths.repo_root))
 
-# 4. 初始化核心服务
-from Backend.utils.bootstrap import bootstrap
-bootstrap()
 
-# 5. 启动 Qt 应用
-from Backend.window_layout import main_window  # noqa: E402
+def main():
+    """
+    统一的应用入口
+    支持服务端和客户端两种模式
+    """
+    # 优先从环境变量读取 APP_MODE，这对于 Docker 部署至关重要
+    app_mode = os.environ.get('APP_MODE', 'client').lower()
 
-app, window = main_window.init_app()
-msg_queue = queue.Queue()
-_cleaned_up = False
+    print(f"--- Starting application in {app_mode.upper()} mode ---")
 
+    # 根据模式选择执行逻辑
+    if app_mode == 'server':
+        # 服务器模式：启动 AI 服务的 HTTP API
+        from Backend.network_service.server import app
 
-def cleanup_blockly_files():
-    """删除上次运行残留的 blockly 脚本与入口文件，避免热更新时导入冲突。"""
-    global _cleaned_up
-    if _cleaned_up:
-        return
+        host = os.environ.get('SERVER_HOST', '0.0.0.0')
+        port = os.environ.get('SERVER_PORT', '20100')
 
-    current_dir = Path(__file__).parent
-    runscript_path = current_dir / 'runScript.py'
-    if runscript_path.exists():
+        print(f"Starting server at {host}:{port}")
+
+        # 使用 Gunicorn（生产环境）
         try:
-            runscript_path.unlink()
-            print(f"已删除: {runscript_path}")
-        except PermissionError:
-            print(f"无法删除 {runscript_path}，文件可能被占用")
+            from gunicorn.app.base import BaseApplication
 
-    script_dir = current_dir / 'script'
-    if script_dir.exists():
-        for file in glob.glob(str(script_dir / 'blockly_code*.py')):
-            try:
-                Path(file).unlink()
-                print(f"已删除: {file}")
-            except PermissionError:
-                print(f"无法删除 {file}，文件可能被占用")
+            class StandaloneApplication(BaseApplication):
+                def __init__(self, app, options=None):
+                    self.options = options or {}
+                    self.application = app
+                    super().__init__()
 
-    _cleaned_up = True
+                def load_config(self):
+                    for key, value in self.options.items():
+                        self.cfg.set(key.lower(), value)
 
+                def load(self):
+                    return self.application
 
-def run(isReload):
-    """按需清理残留，热重载时清理模块缓存后调用 runScript.run()。"""
-    global _cleaned_up
-    if not _cleaned_up:
+            options = {
+                'bind': f'{host}:{port}',
+                'workers': 4,
+                'timeout': 120,
+                'accesslog': '-',
+                'errorlog': '-',
+            }
+            StandaloneApplication(app, options).run()
+        except ImportError:
+            # 回退到 Flask 开发服务器
+            app.run(host=host, port=port, debug=False)
+
+    elif app_mode == 'client':
+        # 客户端模式：启动 Qt 桌面应用
+        print(f"Running in CLIENT mode. Starting Qt application...")
+
+        from Backend.utils.bootstrap import bootstrap
+        bootstrap()
+
+        # 启动 Qt 应用
+        from Backend.window_layout import main_window
+        from Backend.utils.cleanup import cleanup_blockly_files
+        from Backend.utils.script_runner import ScriptRunner
+        app, window = main_window.init_app()
+        script_runner = ScriptRunner(app)
+
+        print("Qt application started.")
         cleanup_blockly_files()
+        while True:
+            script_runner.load_and_run()
+            app.processEvents()
 
-    if isReload:
-        for module_name in list(sys.modules.keys()):
-            if 'runScript' in module_name or 'script' in module_name:
-                del sys.modules[module_name]
-        print("python hotfix")
-
-    runscript_spec = importlib.util.find_spec("runScript")
-    if runscript_spec is not None:
-        runScript = importlib.util.module_from_spec(runscript_spec)
-        runscript_spec.loader.exec_module(runScript)
-        try:
-            runScript.run()
-        except Exception as e:
-            print(f"runScript.run 执行失败: {e}")
-
-    if not msg_queue.empty():
-        print(msg_queue.get())
-
-    app.processEvents()
-
-
-def put_queue(msg):
-    msg_queue.put(msg)
-
+    else:
+        print(f"Error: Unknown mode '{app_mode}'. Please use 'server' or 'client'.", file=sys.stderr)
+        sys.exit(1)
 
 if __name__ == '__main__':
-    cleanup_blockly_files()
-    while True:
-        try:
-            runscript_spec = importlib.util.find_spec("runScript")
-            if runscript_spec is not None:
-                runScript = importlib.util.module_from_spec(runscript_spec)
-                runscript_spec.loader.exec_module(runScript)
-                try:
-                    runScript.run()
-                except Exception as e:
-                    print(f"runScript.run 执行失败: {e}")
-            app.processEvents()
-        except KeyboardInterrupt:
-            break
-        except Exception as e:
-            print(f"主循环异常: {e}")
-            app.processEvents()
+    main()

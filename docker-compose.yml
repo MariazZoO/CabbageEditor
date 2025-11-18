@@ -1,0 +1,81 @@
+# CabbageEditor Docker Compose 配置
+# 用于快速部署 AI 服务端
+
+version: '3.8'
+
+services:
+  # AI 服务端
+  cabbage-ai-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cabbage-editor-ai
+    restart: unless-stopped
+
+    ports:
+      - "20100:20100"  # AI 服务端口
+
+    environment:
+      # 应用模式
+      - APP_MODE=server
+
+      # 服务器配置
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=20100
+
+      # 公网 IP（根据实际部署环境修改）
+      - PUBLIC_IP=${PUBLIC_IP:-175.24.227.58}
+
+      # GPU 配置（默认禁用）
+      - CORONA_ENABLE_GPU=false
+
+      # 日志级别
+      - CORONA_LOG_LEVEL=INFO
+
+      # AI 服务配置（可选，覆盖配置文件）
+      # - CORONA_LLM_MODEL=deepseek-ai/DeepSeek-V3.2-Exp
+      # - CORONA_LLM_PROVIDER=siliconflow
+
+    volumes:
+      # 配置文件挂载（方便修改 API Key 等）
+      - ./config:/app/config:ro
+
+      # AI 配置文件挂载
+      - ./Backend/artificial_intelligence/config:/app/Backend/artificial_intelligence/config:ro
+
+      # 自动保存目录（持久化生成的图片/视频）
+      - ./autosave:/app/autosave
+
+      # 日志目录
+      - ./logs:/app/logs
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:20100/healthz', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    networks:
+      - cabbage-network
+
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+
+networks:
+  cabbage-network:
+    driver: bridge
+
+# 使用方法：
+# 1. 启动服务：docker-compose up -d
+# 2. 查看日志：docker-compose logs -f cabbage-ai-server
+# 3. 停止服务：docker-compose down
+# 4. 重新构建：docker-compose build --no-cache
+

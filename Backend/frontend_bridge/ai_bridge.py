@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from PySide6.QtCore import QObject, Signal, Slot, QTimer
 
 from Backend.artificial_intelligence.service import handle_user_message
-from Backend.artificial_intelligence.config.config import get_app_config
+from config.app_config import get_app_config
 
 from Backend.artificial_intelligence.service import handle_user_message
 from Backend.artificial_intelligence.config.ai_config import get_ai_config

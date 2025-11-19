@@ -43,13 +43,13 @@ class StoredImage:
     def data_url(self) -> str:
         """
         获取 Base64 编码的数据 URL
-        
+
         注意：此方法每次调用都会读取文件。
         对于频繁访问，建议使用 MediaStore.get_cached_data_url()
         """
         b64 = base64.b64encode(self.path.read_bytes()).decode("utf-8")
         return f"data:{self.mime_type};base64,{b64}"
-    
+
     @property
     def cache_key(self) -> str:
         """获取缓存键（用于缓存 data_url）"""
@@ -100,7 +100,7 @@ class MediaStore:
 
         # 视频存储索引
         self._videos: dict[str, list[StoredVideo]] = {}
-        
+
         # Data URL 缓存（避免重复读取和编码文件）
         self._data_url_cache: dict[str, str] = {}
 
@@ -439,16 +439,24 @@ class MediaStore:
                 )
             elif attachment.url:
                 stored = self.resolve_url(attachment.url)
-                if stored and isinstance(stored, StoredImage) and stored.session_id != request.session_id:
-                    stored = self.clone_image_to_session(stored, request.session_id, attachment.category)
-            
+                if (
+                    stored
+                    and isinstance(stored, StoredImage)
+                    and stored.session_id != request.session_id
+                ):
+                    stored = self.clone_image_to_session(
+                        stored, request.session_id, attachment.category
+                    )
+
             if stored and isinstance(stored, StoredImage):
                 self.register_reference(request.session_id, attachment.category, stored)
                 url = self.build_image_url(stored)
                 notes.append(f"已上传{_category_label(attachment.category)}图片：{url}")
             elif attachment.url:
-                notes.append(f"引用{_category_label(attachment.category)}图片：{attachment.url}")
-        
+                notes.append(
+                    f"引用{_category_label(attachment.category)}图片：{attachment.url}"
+                )
+
         return notes
 
     def get_cached_data_url(self, stored: StoredImage) -> str:
@@ -467,20 +475,20 @@ class MediaStore:
         - 线程安全
         """
         cache_key = stored.cache_key
-        
+
         with self._lock:
             # 检查缓存
             if cache_key in self._data_url_cache:
                 return self._data_url_cache[cache_key]
-            
+
             # 生成 data URL
             data_url = stored.data_url
-            
+
             # 缓存结果
             self._data_url_cache[cache_key] = data_url
-            
+
             return data_url
-    
+
     def clear_data_url_cache(self, stored: StoredImage | None = None) -> None:
         """
         清除 data URL 缓存
@@ -494,7 +502,9 @@ class MediaStore:
             else:
                 self._data_url_cache.pop(stored.cache_key, None)
 
-    def load_image_data_url(self, path_str: str | None, use_cache: bool = True) -> str | None:
+    def load_image_data_url(
+        self, path_str: str | None, use_cache: bool = True
+    ) -> str | None:
         """
         将图片路径转换为 Base64 数据 URL
 
@@ -507,7 +517,7 @@ class MediaStore:
         """
         if not path_str:
             return None
-        
+
         # 如果是 autosave:// URL，尝试使用缓存
         if path_str.startswith(AUTOSAVE_URL_SCHEME):
             stored = self.resolve_url(path_str)
@@ -519,10 +529,10 @@ class MediaStore:
             path = stored.path if stored else None
         else:
             path = Path(path_str)
-        
+
         if path is None or not path.exists():
             return None
-        
+
         # 对于非 autosave:// 路径，直接读取（不缓存）
         mime = mimetypes.guess_type(str(path))[0] or "image/png"
         encoded = base64.b64encode(path.read_bytes()).decode("utf-8")
@@ -540,7 +550,7 @@ class MediaStore:
         """
         if not path_str:
             return None
-        
+
         path = Path(path_str).resolve()
         try:
             relative = path.relative_to(self.root)
@@ -549,10 +559,7 @@ class MediaStore:
         return f"{AUTOSAVE_URL_SCHEME}{relative.as_posix()}"
 
     def clone_image_to_session(
-        self,
-        stored: StoredImage | None,
-        session_id: str,
-        category: str
+        self, stored: StoredImage | None, session_id: str, category: str
     ) -> StoredImage:
         """
         克隆图片到新会话
@@ -567,7 +574,7 @@ class MediaStore:
         """
         if stored is None:
             raise ValueError("无法克隆不存在的图片")
-        
+
         # 使用缓存的 data_url 提高性能
         return self.save_upload(
             session_id=session_id,

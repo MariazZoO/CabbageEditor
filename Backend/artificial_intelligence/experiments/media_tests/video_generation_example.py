@@ -33,10 +33,8 @@ def test_video_generation_service():
     payload = {
         "prompt": PROMPT,
         "image_url": str(IMAGE_CACHE_DIR / "7be4ecf5a1e14473827038e5f6507472.png"),
-        "session_id": "test_session",
         "resolution": "720P",
         "prompt_extend": True,
-        "download_video": True,
     }
 
     print("=" * 60)
@@ -58,13 +56,12 @@ def test_video_generation_service():
         print(f"  提示词: {data.get('prompt')}")
         print(f"  视频URL: {data.get('video_url')}")
         print(f"  任务ID: {data.get('task_id')}")
-
-        if "local_video" in data:
-            local = data["local_video"]
-            print("\n  本地视频:")
-            print(f"    文件名: {local['name']}")
-            print(f"    路径: {local['path']}")
-            print(f"    大小: {local['file_size_mb']:.2f} MB")
+        print(f"  分辨率: {data.get('resolution')}")
+        if data.get('usage'):
+            usage = data['usage']
+            print("\n  资源使用:")
+            print(f"    视频时长: {usage.get('video_duration')}秒")
+            print(f"    图片数量: {usage.get('num_images')}")
     else:
         print(f"  错误: {data.get('content')}")
 

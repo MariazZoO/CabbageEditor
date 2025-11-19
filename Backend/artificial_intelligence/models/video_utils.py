@@ -126,10 +126,10 @@ def resolve_image_url(image_source: str | Path, image_store=None) -> str | None:
     从多种来源解析图片 URL，返回 VideoSynthesis 可接受的 URL 格式。
 
     支持的输入格式：
-    - autosave:// URL（会话中上传或生成的图片）
-    - data:image/...;base64,... URI
-    - http:// 或 https:// 网络图片 URL
-    - 本地文件路径
+    - data:image/...;base64,... URI（直接返回）
+    - http:// 或 https:// 网络图片 URL（直接返回）
+    - file:// 本地文件路径
+    - 本地文件路径（转换为 file:// URL）
 
     返回格式：
     - file:// 本地文件路径
@@ -138,7 +138,7 @@ def resolve_image_url(image_source: str | Path, image_store=None) -> str | None:
 
     参数:
     - image_source: 图片来源（URL 或路径）
-    - image_store: ImageStore 实例（处理 autosave:// URL 时需要）
+    - image_store: 已废弃，保留仅为兼容性
 
     返回:
     - 解析后的 URL，失败返回 None
@@ -165,29 +165,21 @@ def resolve_image_url(image_source: str | Path, image_store=None) -> str | None:
     if source.startswith(("http://", "https://")):
         return source
 
-    # 处理 autosave:// URL
-    if source.startswith("autosave://"):
-        if image_store is None:
-            import logging
-
-            logging.getLogger(__name__).error(
-                "处理 autosave:// URL 需要提供 image_store 参数"
-            )
-            return None
-
-        stored = image_store.resolve_url(source)
-        if stored and stored.path.exists():
-            # 转换为 file:// URL
-            return f"file://{stored.path.absolute()}"
-        else:
-            import logging
-
-            logging.getLogger(__name__).warning(
-                f"autosave URL 对应的图片不存在: {source}"
-            )
-            return None
+    # 处理 file:// URL - 直接返回
+    if source.startswith("file://"):
+        return source
 
     # 尝试作为本地路径
+    candidate = Path(source)
+    if candidate.exists():
+        # 转换为 file:// URL
+        return f"file://{candidate.absolute()}"
+
+    # 未知格式
+    import logging
+
+    logging.getLogger(__name__).warning(f"无法识别的图片源格式: {source[:100]}...")
+    return None
     candidate = Path(source)
     if candidate.exists():
         # 转换为 file:// URL

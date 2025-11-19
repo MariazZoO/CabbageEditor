@@ -398,9 +398,6 @@ class RouteDockWidget(QDockWidget):
     def send_message_to_dock(self, json_data):
         self.dock_event("dockData", json_data)
 
-    def send_message_to_main(self, json_data):
-        pass
-
     def send_ai_message_to_js(self, message):
         try:
             if not isinstance(message, str):

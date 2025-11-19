@@ -36,18 +36,6 @@ from .entities import (
 # Managers - 资源管理器（DOP 风格）
 # ============================================================================
 from .managers import (
-    # 类包装器（OOP 兼容）
-    SceneManager,
-    ActorManager,
-    CameraManager,
-    ViewportManager,
-    EnvironmentManager,
-    GeometryManager,
-    OpticsManager,
-    MechanicsManager,
-    KinematicsManager,
-    AcousticsManager,
-    # 模块（DOP 风格，用于高级用法）
     scene_manager,
     actor_manager,
     camera_manager,
@@ -83,17 +71,6 @@ __all__ = [
     "Viewport",
     "Scene",
     "Environment",
-    # Managers (OOP style)
-    "SceneManager",
-    "ActorManager",
-    "CameraManager",
-    "ViewportManager",
-    "EnvironmentManager",
-    "GeometryManager",
-    "OpticsManager",
-    "MechanicsManager",
-    "KinematicsManager",
-    "AcousticsManager",
     # Managers (DOP modules)
     "scene_manager",
     "actor_manager",

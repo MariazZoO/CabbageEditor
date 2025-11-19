@@ -2,11 +2,8 @@ from __future__ import annotations
 import json
 from PySide6.QtCore import QObject, Signal, Slot
 
-from Backend.utils.scene_service import SceneApplicationService
-from Backend.utils.bootstrap import bootstrap
-from Backend.utils.container import get_container
+from Backend.utils.scene_service import SceneApplicationService, get_scene_service
 
-bootstrap()
 
 
 class SceneService(QObject):
@@ -16,8 +13,7 @@ class SceneService(QObject):
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
-        container = get_container()
-        self.scene_service: SceneApplicationService = container.resolve("scene_service")
+        self.scene_service: SceneApplicationService = get_scene_service()
 
     @Slot(str, str)
     def create_actor(self, scene_name: str, obj_path: str) -> None:

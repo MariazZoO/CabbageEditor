@@ -155,36 +155,3 @@ def print_state() -> None:
     print(f"[GeometryManager] Total: {count()} | deps={len(_dependencies)}")
     for name, geo in _geometries.items():
         print(f"  - {name}: pos={geo.get_position()} deps={_dependencies.get(_key(geo), [])}")
-
-
-# ============================================================================
-# 向后兼容类包装器
-# ============================================================================
-class GeometryManager:
-    @staticmethod
-    def create(name: str, model_path: str) -> Geometry:
-        return create(name, model_path)
-
-    @staticmethod
-    def register(name: str, geometry: Geometry) -> None:
-        return register(name, geometry)
-
-    @staticmethod
-    def get(name: str) -> Optional[Geometry]:
-        return get(name)
-
-    @staticmethod
-    def get_or_create(name: str, model_path: str) -> Geometry:
-        return get_or_create(name, model_path)
-
-    @staticmethod
-    def remove(name: str) -> bool:
-        return remove(name)
-
-    @staticmethod
-    def clear() -> None:
-        return clear()
-
-    @staticmethod
-    def list() -> List[str]:
-        return list_all()

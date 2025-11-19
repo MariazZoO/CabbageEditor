@@ -24,6 +24,13 @@ if not app_config.runtime.enable_gpu:
 # 确保 repo_root 在 sys.path 中
 sys.path.append(str(app_config.paths.repo_root))
 
+# 4. 初始化日志（尽早进行）
+try:
+    from Backend.utils.logging import configure_logging
+    configure_logging()
+except Exception:
+    pass
+
 
 def main():
     """
@@ -77,9 +84,6 @@ def main():
     elif app_mode == 'client':
         # 客户端模式：启动 Qt 桌面应用
         print(f"Running in CLIENT mode. Starting Qt application...")
-
-        from Backend.utils.bootstrap import bootstrap
-        bootstrap()
 
         # 启动 Qt 应用
         from Backend.window_layout import main_window

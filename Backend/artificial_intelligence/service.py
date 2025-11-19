@@ -25,11 +25,12 @@ from Backend.artificial_intelligence.tools.session import (
     reset_current_session,
     set_current_session,
 )
-from Backend.utils.bootstrap import bootstrap
 
-from Backend.artificial_intelligence.agent.requests import normalize_request
+from Backend.artificial_intelligence.agent.requests import (
+    normalize_request,
+    normalize_upload_request,
+)
 
-bootstrap()
 _MEDIA_STORE = get_media_store()
 
 

@@ -6,6 +6,7 @@ from langchain_core.tools import BaseTool
 
 from Backend.artificial_intelligence.config.config import AppConfig
 from Backend.artificial_intelligence.tools.mcp.scene_tools import load_scene_tools
+from Backend.utils.scene_service import get_scene_service
 
 
 def load_mcp_tools(config: AppConfig) -> list[BaseTool]:
@@ -13,14 +14,9 @@ def load_mcp_tools(config: AppConfig) -> list[BaseTool]:
 
 
 def _load_internal_scene_tools() -> List[BaseTool]:
-    from Backend.utils.bootstrap import bootstrap
-    from Backend.utils.container import get_container
-
-    bootstrap()
-    container = get_container()
     try:
-        scene_service = container.resolve("scene_service")
-    except KeyError:
+        scene_service = get_scene_service()
+    except Exception:
         return []
     return load_scene_tools(scene_service)
 

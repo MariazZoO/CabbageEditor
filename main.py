@@ -78,9 +78,6 @@ def main():
         # 客户端模式：启动 Qt 桌面应用
         print(f"Running in CLIENT mode. Starting Qt application...")
 
-        from Backend.utils.bootstrap import bootstrap
-        bootstrap()
-
         # 启动 Qt 应用
         from Backend.window_layout import main_window
         from Backend.utils.cleanup import cleanup_blockly_files

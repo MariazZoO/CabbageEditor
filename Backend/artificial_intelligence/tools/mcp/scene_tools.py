@@ -39,7 +39,7 @@ def _build_scene_query_tool(scene_service: "SceneApplicationService") -> Structu
         name: str | None = None,
     ) -> str:
         data = SceneQueryInput(scene_name=scene_name, query=query, name=name)
-        scene = scene_service.scene_manager.get_scene(data.scene_name)
+        scene = scene_service.get_scene(data.scene_name)
         if scene is None:
             return json.dumps({"scene": data.scene_name, "actors": []}, ensure_ascii=False)
 

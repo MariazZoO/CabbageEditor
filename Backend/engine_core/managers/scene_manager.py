@@ -116,32 +116,3 @@ def print_state() -> None:
         print(f"  - {name}: {scene}")
 
 
-# ============================================================================
-# 向后兼容：类包装器（可选）
-# ============================================================================
-class SceneManager:
-    """向后兼容的类包装器，内部调用 DOP 函数"""
-
-    @staticmethod
-    def create_scene(scene_name: str) -> Scene:
-        return create(scene_name)
-
-    @staticmethod
-    def get_scene(scene_name: str) -> Optional[Scene]:
-        return get(scene_name)
-
-    @staticmethod
-    def delete_scene(scene_name: str) -> bool:
-        return remove(scene_name)
-
-    @staticmethod
-    def has_scene(scene_name: str) -> bool:
-        return has(scene_name)
-
-    @staticmethod
-    def list_scenes() -> List[str]:
-        return list_all()
-
-    @staticmethod
-    def get_or_create(scene_name: str) -> Scene:
-        return get_or_create(scene_name)

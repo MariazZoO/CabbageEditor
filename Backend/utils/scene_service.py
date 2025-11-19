@@ -2,14 +2,22 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Protocol
 
 from ..engine_core.entities.actor import Actor
-from ..engine_core.managers.scene_manager import SceneManager
-from .logging import (get_logger)
+from ..engine_core.managers import scene_manager as scene_manager_module
+from .logging import get_logger
 
 
 logger = get_logger(__name__)
+
+
+class SceneManagerAPI(Protocol):
+    def get(self, name: str) -> Any:
+        ...
+
+    def get_or_create(self, name: str) -> Any:
+        ...
 
 
 def _actor_payload(actor: Actor) -> Dict[str, str]:
@@ -32,17 +40,20 @@ def _scene_snapshot(scene) -> Dict[str, Any]:
 
 
 class SceneApplicationService:
-    def __init__(self, scene_manager: SceneManager | None = None) -> None:
-        self.scene_manager = scene_manager or SceneManager()
+    def __init__(self, scene_manager: SceneManagerAPI | None = None) -> None:
+        self._scene_manager: SceneManagerAPI = scene_manager or scene_manager_module
 
     def _get_scene(self, scene_name: str):
-        scene = self.scene_manager.get_scene(scene_name)
+        scene = self._scene_manager.get(scene_name)
         if scene is None:
             raise ValueError(f"Scene '{scene_name}' not found")
         return scene
 
+    def get_scene(self, scene_name: str):
+        return self._get_scene(scene_name)
+
     def create_scene(self, scene_name: str) -> Dict:
-        scene = self.scene_manager.create_scene(scene_name)
+        scene = self._scene_manager.get_or_create(scene_name)
         logger.info("Created scene %s", scene_name)
         return _scene_snapshot(scene)
 
@@ -111,3 +122,20 @@ class SceneApplicationService:
     def export_scene(self, scene_name: str) -> str:
         scene = self._get_scene(scene_name)
         return json.dumps(_scene_snapshot(scene), indent=2)
+
+
+_SCENE_SERVICE_SINGLETON: SceneApplicationService | None = None
+
+
+def get_scene_service() -> SceneApplicationService:
+    """Return a process-wide SceneApplicationService instance."""
+    global _SCENE_SERVICE_SINGLETON
+    if _SCENE_SERVICE_SINGLETON is None:
+        _SCENE_SERVICE_SINGLETON = SceneApplicationService()
+    return _SCENE_SERVICE_SINGLETON
+
+
+def set_scene_service(service: SceneApplicationService | None) -> None:
+    """Override the global SceneApplicationService (mainly for tests)."""
+    global _SCENE_SERVICE_SINGLETON
+    _SCENE_SERVICE_SINGLETON = service

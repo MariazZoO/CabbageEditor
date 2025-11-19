@@ -99,37 +99,3 @@ def print_state() -> None:
     print(f"[AcousticsManager] Total: {count()}")
     for n, a in _acoustics.items():
         print(f"  - {n}: geo={getattr(a, '_geo', None)}")
-
-
-class AcousticsManager:
-    @staticmethod
-    def create(name: str, geometry: Geometry) -> Acoustics:
-        return create(name, geometry)
-
-    @staticmethod
-    def register(name: str, acoustics: Acoustics, geometry: Geometry) -> None:
-        return register(name, acoustics, geometry)
-
-    @staticmethod
-    def get(name: str) -> Optional[Acoustics]:
-        return get(name)
-
-    @staticmethod
-    def get_or_create(name: str, geometry: Geometry) -> Acoustics:
-        return get_or_create(name, geometry)
-
-    @staticmethod
-    def remove(name: str) -> bool:
-        return remove(name)
-
-    @staticmethod
-    def clear() -> None:
-        return clear()
-
-    @staticmethod
-    def set_all_volume(volume: float) -> None:
-        return set_all_volume(volume)
-
-    @staticmethod
-    def mute_all() -> None:
-        return mute_all()

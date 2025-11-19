@@ -87,29 +87,3 @@ def print_state() -> None:
     print(f"[MechanicsManager] Total: {count()}")
     for n, m in _mechanics.items():
         print(f"  - {n}: geo={getattr(m, '_geo', None)}")
-
-
-class MechanicsManager:
-    @staticmethod
-    def create(name: str, geometry: Geometry) -> Mechanics:
-        return create(name, geometry)
-
-    @staticmethod
-    def register(name: str, mechanics: Mechanics, geometry: Geometry) -> None:
-        return register(name, mechanics, geometry)
-
-    @staticmethod
-    def get(name: str) -> Optional[Mechanics]:
-        return get(name)
-
-    @staticmethod
-    def get_or_create(name: str, geometry: Geometry) -> Mechanics:
-        return get_or_create(name, geometry)
-
-    @staticmethod
-    def remove(name: str) -> bool:
-        return remove(name)
-
-    @staticmethod
-    def clear() -> None:
-        return clear()

@@ -5,10 +5,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from PySide6.QtCore import QObject, Signal, Slot, QTimer
 
-from Backend.artificial_intelligence.service import handle_user_message
-from Backend.artificial_intelligence.config.config import get_app_config
-
-from Backend.artificial_intelligence.service import handle_user_message
+from Backend.artificial_intelligence.service import handle_chat
 from Backend.artificial_intelligence.config.ai_config import get_ai_config
 
 from Backend.artificial_intelligence.models import get_chat_model
@@ -102,7 +99,7 @@ class AIService(QObject):
 
             # 在线程池中执行阻塞的 AI 调用
             result = await self._loop.run_in_executor(
-                self._executor, handle_user_message, payload
+                self._executor, handle_chat, payload
             )
 
             # 发送响应信号
@@ -122,15 +119,20 @@ class AIService(QObject):
     @Slot(str)
     def upload_image(self, payload: str) -> None:
         """
-        上传图片
+        上传图片（现在通过统一的 handle_chat 接口处理）
 
         前端消息格式:
         {
-            "data": "base64...",
-            "name": "image.png",
-            "type": "product",  // category: product | scene
+            "message": "",  // 可选的文本消息
             "session_id": "session_xxx",
-            "token": "token_xxx"
+            "images": [
+                {
+                    "data": "base64...",
+                    "name": "image.png",
+                    "type": "product"  // category: product | scene
+                }
+            ],
+            "token": "token_xxx"  // 可选，用于前端追踪
         }
         """
         task = self._loop.create_task(self._process_image_upload(payload))
@@ -142,17 +144,38 @@ class AIService(QObject):
             data = json.loads(payload)
         except json.JSONDecodeError:
             data = {}
+
+        # 转换旧格式到新格式
+        if "data" in data and "images" not in data:
+            # 旧格式：单个图片的 data/name/type 直接在根层级
+            data = {
+                "message": data.get("message", ""),
+                "session_id": data.get("session_id"),
+                "images": [
+                    {
+                        "data": data.get("data"),
+                        "name": data.get("name", "upload.png"),
+                        "type": data.get("type", "product"),
+                    }
+                ],
+            }
+
+        token = data.pop("token", None)  # 保存 token 用于响应
+
         try:
-            result = await self._loop.run_in_executor(
-                self._executor, data
-            )
+            result = await self._loop.run_in_executor(self._executor, handle_chat, data)
+            # 如果有 token，添加到响应中
+            if token:
+                result_data = json.loads(result)
+                result_data["token"] = token
+                result = json.dumps(result_data, ensure_ascii=False)
             self.ai_response.emit(result)
         except BaseException as exc:
             error_payload = json.dumps(
                 {
-                    "type": "image_upload",
+                    "type": "ai_response",
                     "status": "error",
-                    "token": data.get("token"),
+                    "token": token,
                     "content": _format_exception(exc),
                     "timestamp": int(time.time()),
                 }

@@ -33,6 +33,117 @@ from Backend.artificial_intelligence.agent.requests import normalize_request
 _MEDIA_STORE = get_media_store()
 
 
+def handle_chat(payload: Any) -> str:
+    """
+    统一的聊天接口，支持以下三种调用方式：
+
+    1. 用户消息（带图片上传）:
+    {
+        "message": "用户输入的文本",
+        "session_id": "session_xxx",      // 可选
+        "images": [                        // 可选，图片附件数组
+            {
+                "name": "image1.jpg",
+                "type": "product",         // product/scene
+                "data": "base64...",       // base64编码或data URI
+                "url": "http://..."        // 或者使用URL
+            }
+        ]
+    }
+
+    2. 简单文本消息:
+    "用户的文本消息"
+
+    3. LangChain标准消息列表:
+    [
+        {"role": "user", "content": "..."},
+        {"role": "assistant", "content": "..."},
+        ...
+    ]
+    或直接传递 List[BaseMessage]
+    """
+    try:
+        # 情况3: 检查是否是 LangChain 消息列表
+        if isinstance(payload, list):
+            # 检查是否是 BaseMessage 列表
+            if payload and isinstance(payload[0], BaseMessage):
+                return _handle_langchain_messages(payload, default_session_id())
+            # 检查是否是标准消息格式的字典列表
+            elif payload and isinstance(payload[0], dict) and "role" in payload[0]:
+                # 转换为 BaseMessage 列表
+                messages = _convert_to_base_messages(payload)
+                return _handle_langchain_messages(messages, default_session_id())
+
+        # 情况1和2: 用户消息（可能带图片）
+        request = normalize_request(payload, default_session_id())
+        stored_history = get_history(request.session_id)
+
+        user_message = build_user_message(request)
+        # user_message为dict，需转为BaseMessage
+        pending_history = [
+            *stored_history,
+            HumanMessage(content=user_message["content"]),
+        ]
+
+        token = set_current_session(request.session_id)
+        try:
+            # 直接调用 agent
+            state = run_agent(pending_history)
+            log_ai_messages(state)
+        finally:
+            reset_current_session(token)
+
+        messages = coerce_messages(state)
+        # messages为dict列表，提取assistant消息并转为AIMessage
+        history_extension = []
+        for m in messages:
+            if isinstance(m, dict) and m.get("role") == "assistant":
+                content = m.get("content")
+                # 确保content为数组
+                if isinstance(content, str):
+                    content = [{"type": "text", "text": content}]
+                history_extension.append(AIMessage(content=content))
+            elif isinstance(m, AIMessage):
+                history_extension.append(m)
+        update_history(request.session_id, [*pending_history, *history_extension])
+
+        content = extract_text(messages)
+        if not content.strip():
+            content = _fallback_completion(pending_history)
+
+        image_payload = extract_image_payload(messages)
+        response: Dict[str, Any] = {
+            "type": (
+                image_payload.get("type", "ai_response")
+                if image_payload
+                else "ai_response"
+            ),
+            "content": content,
+            "status": "success",
+            "timestamp": int(time.time()),
+            "session_id": request.session_id,
+        }
+        if image_payload:
+            response.update(
+                {
+                    "image_base64": image_payload.get("image_base64"),
+                    "image_name": image_payload.get("image_name"),
+                    "image_path": image_payload.get("image_path"),
+                    "image_url": image_payload.get("image_url"),
+                }
+            )
+        return json.dumps(response, ensure_ascii=False)
+
+    except Exception as e:
+        error_response = {
+            "type": "ai_response",
+            "status": "error",
+            "timestamp": int(time.time()),
+            "content": str(e),
+        }
+        return json.dumps(error_response, ensure_ascii=False)
+
+
 def handle_image_generation(payload: Any) -> str:
     """
     处理独立的图像生成请求
@@ -209,60 +320,57 @@ def handle_video_generation(payload: Any) -> str:
         return json.dumps(error_response, ensure_ascii=False)
 
 
-def invoke_messages(messages: List[BaseMessage]) -> Dict[str, Any]:
+def _convert_to_base_messages(message_dicts: List[Dict[str, Any]]) -> List[BaseMessage]:
     """
-    直接使用 LangChain 标准的 BaseMessage 列表调用 agent。
+    将标准消息格式转换为 LangChain BaseMessage 列表
     """
-    result = run_agent(messages)
-    log_ai_messages(result)
-    return result
+    messages: List[BaseMessage] = []
+    for msg in message_dicts:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+
+        if role == "system":
+            messages.append(SystemMessage(content=content))
+        elif role in ("user", "human"):
+            messages.append(HumanMessage(content=content))
+        elif role in ("assistant", "ai"):
+            messages.append(AIMessage(content=content))
+        else:
+            # 默认作为用户消息处理
+            messages.append(HumanMessage(content=content))
+
+    return messages
 
 
-def handle_user_message(message: Any) -> str:
-    request = normalize_request(message, default_session_id())
-    stored_history = get_history(request.session_id)
-
-    user_message = build_user_message(request)
-    # user_message为dict，需转为BaseMessage
-    pending_history = [*stored_history, HumanMessage(content=user_message["content"])]
-
-    token = set_current_session(request.session_id)
+def _handle_langchain_messages(messages: List[BaseMessage], session_id: str) -> str:
+    """
+    处理 LangChain 消息列表的内部方法
+    """
+    token = set_current_session(session_id)
     try:
-        # 直接传递 BaseMessage 列表给 agent，不需要转化为 dict
-        state = invoke_messages(pending_history)
+        state = run_agent(messages)
+        log_ai_messages(state)
     finally:
         reset_current_session(token)
 
-    messages = coerce_messages(state)
-    # messages为dict列表，提取assistant消息并转为AIMessage
-    history_extension = []
-    for m in messages:
-        if isinstance(m, dict) and m.get("role") == "assistant":
-            content = m.get("content")
-            # 确保content为数组
-            if isinstance(content, str):
-                content = [{"type": "text", "text": content}]
-            history_extension.append(AIMessage(content=content))
-        elif isinstance(m, AIMessage):
-            history_extension.append(m)
-    update_history(request.session_id, [*pending_history, *history_extension])
+    response_messages = coerce_messages(state)
+    content = extract_text(response_messages)
 
-    content = extract_text(messages)
     if not content.strip():
-        content = _fallback_completion(pending_history)
+        content = _fallback_completion(messages)
 
-    image_payload = extract_image_payload(messages)
-    payload: Dict[str, Any] = {
+    image_payload = extract_image_payload(response_messages)
+    response: Dict[str, Any] = {
         "type": (
             image_payload.get("type", "ai_response") if image_payload else "ai_response"
         ),
         "content": content,
         "status": "success",
         "timestamp": int(time.time()),
-        "session_id": request.session_id,
+        "session_id": session_id,
     }
     if image_payload:
-        payload.update(
+        response.update(
             {
                 "image_base64": image_payload.get("image_base64"),
                 "image_name": image_payload.get("image_name"),
@@ -270,7 +378,7 @@ def handle_user_message(message: Any) -> str:
                 "image_url": image_payload.get("image_url"),
             }
         )
-    return json.dumps(payload, ensure_ascii=False)
+    return json.dumps(response, ensure_ascii=False)
 
 
 def _fallback_completion(history: List[BaseMessage]) -> str:
@@ -299,17 +407,6 @@ def _fallback_completion(history: List[BaseMessage]) -> str:
         content = "\n".join([b["text"] for b in content if b.get("type") == "text"])
     print(f"[AIMessage] {content}")
     return content
-
-
-__all__ = [
-    "invoke_messages",
-    "handle_user_message",
-    "handle_image_generation",
-    "handle_video_generation",
-    "handle_copywriting_generation",
-    "handle_tts_generation",
-    "handle_music_generation",
-]
 
 
 def handle_copywriting_generation(payload: Any) -> str:
@@ -608,3 +705,13 @@ def handle_music_generation(payload: Any) -> str:
             "content": str(e),
         }
         return json.dumps(error_response, ensure_ascii=False)
+
+
+__all__ = [
+    "handle_chat",
+    "handle_image_generation",
+    "handle_video_generation",
+    "handle_copywriting_generation",
+    "handle_tts_generation",
+    "handle_music_generation",
+]

@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from langchain_core.language_models.chat_models import BaseChatModel
 
-from Backend.artificial_intelligence.config.config import AppConfig, ProviderConfig
+from Backend.artificial_intelligence.config.ai_config import AIConfig, ProviderConfig
 from Backend.artificial_intelligence.models.client_openai import build_openai_chat
 
 
 def get_chat_model(
-    config: AppConfig,
+    config: AIConfig,
     *,
     provider_name: str | None = None,
     model_name: str | None = None,
@@ -31,7 +31,7 @@ def get_chat_model(
     raise ValueError(f"暂不支持的模型提供商类型: {provider.type}")
 
 
-def _require_provider(config: AppConfig, name: str) -> ProviderConfig:
+def _require_provider(config: AIConfig, name: str) -> ProviderConfig:
     try:
         return config.providers[name]
     except KeyError as exc:

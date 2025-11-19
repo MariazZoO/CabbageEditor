@@ -8,7 +8,7 @@ import json
 from pydantic import BaseModel, Field
 from langchain_core.tools import StructuredTool
 
-from Backend.artificial_intelligence.config.config import AppConfig
+from Backend.artificial_intelligence.config.ai_config import AIConfig
 from Backend.artificial_intelligence.models.tts_client import (
     create_tts_client,
     AudioConfig,
@@ -43,7 +43,7 @@ class TextToSpeechInput(BaseModel):
     )
 
 
-def load_tts_tools(config: AppConfig):
+def load_tts_tools(config: AIConfig):
     """
     加载语音合成工具
 

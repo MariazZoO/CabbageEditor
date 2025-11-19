@@ -14,7 +14,7 @@ if str(project_root) not in sys.path:
 def test_music_generation_quick():
     """测试快速音乐生成（不等待完成）"""
     from Backend.artificial_intelligence.tools.base import load_tools
-    from Backend.artificial_intelligence.config.config import get_app_config
+    from Backend.artificial_intelligence.config.ai_config import get_ai_config
 
     print("=" * 60)
     print("音乐生成测试 - 快速模式")
@@ -22,7 +22,7 @@ def test_music_generation_quick():
 
     try:
         # 加载配置和工具
-        config = get_app_config()
+        config = get_ai_config()
         tools = load_tools(config)
 
         # 查找音乐生成工具
@@ -85,7 +85,7 @@ def test_music_generation_quick():
 def test_music_generation_with_wait():
     """测试同步音乐生成（等待完成并下载）"""
     from Backend.artificial_intelligence.tools.base import load_tools
-    from Backend.artificial_intelligence.config.config import get_app_config
+    from Backend.artificial_intelligence.config.ai_config import get_ai_config
 
     print("\n" + "=" * 60)
     print("音乐生成测试 - 同步等待模式")
@@ -94,7 +94,7 @@ def test_music_generation_with_wait():
 
     try:
         # 加载配置和工具
-        config = get_app_config()
+        config = get_ai_config()
         tools = load_tools(config)
 
         # 查找音乐生成工具

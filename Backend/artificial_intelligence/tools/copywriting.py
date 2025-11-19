@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from langchain_core.tools import StructuredTool
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from Backend.artificial_intelligence.config.config import AppConfig
+from Backend.artificial_intelligence.config.ai_config import AIConfig
 from Backend.artificial_intelligence.models import get_chat_model
 
 
@@ -40,7 +40,7 @@ class CreativeCopywritingInput(BaseModel):
     length: str = Field(default="中等", description="作品长度，可选：简短、中等、长篇")
 
 
-def load_copywriting_tools(config: AppConfig) -> List[StructuredTool]:
+def load_copywriting_tools(config: AIConfig) -> List[StructuredTool]:
     """
     加载文案生成工具
 

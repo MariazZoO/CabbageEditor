@@ -37,7 +37,7 @@ import requests
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
-from Backend.artificial_intelligence.config.config import AppConfig
+from Backend.artificial_intelligence.config.ai_config import AIConfig
 
 _DEFAULT_BASE_URL = "https://api.sunoapi.org"
 
@@ -83,7 +83,7 @@ class TextToBGMInput(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _resolve_suno_provider(config: AppConfig) -> Optional[SunoProviderInfo]:
+def _resolve_suno_provider(config: AIConfig) -> Optional[SunoProviderInfo]:
     """
     解析 Suno API 配置，优先级：
     1. config.music 配置（独立配置项）
@@ -154,7 +154,7 @@ def _get_music_details(provider: SunoProviderInfo, task_id: str) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def load_music_tools(config: AppConfig):
+def load_music_tools(config: AIConfig):
     provider = _resolve_suno_provider(config)
     if provider is None:
         # 未配置 API Key 时不加载工具，保持系统正常

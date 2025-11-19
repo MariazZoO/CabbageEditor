@@ -13,7 +13,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(REPO_ROOT))
 
-from Backend.artificial_intelligence.config.config import get_app_config
+from Backend.artificial_intelligence.config.ai_config import get_ai_config
 from Backend.artificial_intelligence.tools.copywriting import load_copywriting_tools
 
 
@@ -23,7 +23,7 @@ def test_product_copywriting():
     print("测试1: 产品文案生成")
     print("=" * 50)
 
-    config = get_app_config()
+    config = get_ai_config()
     tools = load_copywriting_tools(config)
 
     if not tools:
@@ -61,7 +61,7 @@ def test_marketing_copywriting():
     print("测试2: 营销文案生成")
     print("=" * 50)
 
-    config = get_app_config()
+    config = get_ai_config()
     tools = load_copywriting_tools(config)
 
     if not tools:
@@ -100,7 +100,7 @@ def test_creative_copywriting():
     print("测试3: 创意文案生成")
     print("=" * 50)
 
-    config = get_app_config()
+    config = get_ai_config()
     tools = load_copywriting_tools(config)
 
     if not tools:

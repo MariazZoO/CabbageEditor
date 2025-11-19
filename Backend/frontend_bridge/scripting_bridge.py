@@ -3,7 +3,7 @@ import os
 import json
 import logging
 from PySide6.QtCore import QObject, Signal, Slot
-from Backend.artificial_intelligence.config.config import get_app_config
+from config.app_config import get_app_config
 
 logger = logging.getLogger(__name__)
 

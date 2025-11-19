@@ -18,7 +18,8 @@ from Backend.artificial_intelligence.agent.adapters import (
     extract_text,
     log_ai_messages,
 )
-from Backend.artificial_intelligence.config.config import get_app_config
+from Backend.artificial_intelligence.config.ai_config import get_ai_config
+from config.app_config import get_app_config
 from Backend.artificial_intelligence.models import get_chat_model
 from Backend.artificial_intelligence.storage import get_media_store
 from Backend.artificial_intelligence.tools.session import (
@@ -277,7 +278,7 @@ def _fallback_completion(history: List[BaseMessage]) -> str:
     备用完成方法：直接使用 LLM 而不经过 agent。
     接受标准的 LangChain BaseMessage 列表。
     """
-    cfg = get_app_config()
+    cfg = get_ai_config()
     chat_cfg = cfg.chat
     llm = get_chat_model(
         cfg,

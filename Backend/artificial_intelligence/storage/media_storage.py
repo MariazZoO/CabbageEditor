@@ -18,7 +18,7 @@ from typing import Optional
 
 import requests
 
-from Backend.artificial_intelligence.config.config import get_app_config
+from config.app_config import get_app_config as get_global_app_config
 
 # URL 协议
 AUTOSAVE_URL_SCHEME = "autosave://"
@@ -685,7 +685,7 @@ def get_media_store() -> MediaStore:
     if _MEDIA_STORE is None:
         with _STORE_LOCK:
             if _MEDIA_STORE is None:
-                cfg = get_app_config()
+                cfg = get_global_app_config()
                 _MEDIA_STORE = MediaStore(cfg.paths.autosave_dir)
     return _MEDIA_STORE
 

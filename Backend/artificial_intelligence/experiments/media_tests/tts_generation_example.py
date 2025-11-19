@@ -14,7 +14,7 @@ sys.path.insert(0, str(repo_root))
 
 def test_tts_tools():
     """测试 TTS 工具"""
-    from Backend.artificial_intelligence.config.config import get_app_config
+    from Backend.artificial_intelligence.config.ai_config import get_ai_config
     from Backend.artificial_intelligence.tools.base import load_tools
 
     print("=" * 60)
@@ -24,7 +24,7 @@ def test_tts_tools():
     try:
         # 加载配置
         print("\n1. 正在加载配置...")
-        config = get_app_config()
+        config = get_ai_config()
         print("✓ 配置加载成功")
 
         # 检查 TTS 配置
@@ -139,8 +139,8 @@ def test_import():
         print("    ✓")
 
         print("  • 导入配置...")
-        from Backend.artificial_intelligence.config.config import (
-            get_app_config,  # noqa: F401
+        from Backend.artificial_intelligence.config.ai_config import (
+            get_ai_config,  # noqa: F401
             TTSConfig,  # noqa: F401
         )
 

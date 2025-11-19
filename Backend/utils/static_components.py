@@ -1,6 +1,6 @@
 from PySide6.QtCore import QUrl
 
-from Backend.artificial_intelligence.config.config import get_app_config
+from config.app_config import get_app_config
 
 settings = get_app_config()
 root_dir = settings.paths.repo_root

@@ -6,7 +6,7 @@ from typing import List
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
-from Backend.artificial_intelligence.config.config import AppConfig, MediaToolConfig
+from Backend.artificial_intelligence.config.ai_config import AIConfig, MediaToolConfig
 from Backend.artificial_intelligence.models.client_image import LingyaImageClient
 from Backend.artificial_intelligence.storage import get_media_store
 
@@ -57,7 +57,7 @@ class ImageGenerationInput(BaseModel):
     )
 
 
-def load_image_tools(config: AppConfig) -> List[StructuredTool]:
+def load_image_tools(config: AIConfig) -> List[StructuredTool]:
     image_cfg = config.media.image
     if not _is_media_tool_enabled(image_cfg, config):
         return []
@@ -116,7 +116,7 @@ def load_image_tools(config: AppConfig) -> List[StructuredTool]:
     return [tool]
 
 
-def _is_media_tool_enabled(cfg: MediaToolConfig, config: AppConfig) -> bool:
+def _is_media_tool_enabled(cfg: MediaToolConfig, config: AIConfig) -> bool:
     if not cfg.enable:
         return False
     if not cfg.provider or not cfg.model:

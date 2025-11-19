@@ -7,6 +7,10 @@ from PySide6.QtCore import QObject, Signal, Slot, QTimer
 
 from Backend.artificial_intelligence.service import handle_user_message
 from Backend.artificial_intelligence.config.config import get_app_config
+
+from Backend.artificial_intelligence.service import handle_user_message
+from Backend.artificial_intelligence.config.ai_config import get_ai_config
+
 from Backend.artificial_intelligence.models import get_chat_model
 from Backend.utils.logging import get_logger
 
@@ -23,7 +27,7 @@ def _format_exception(exc: BaseException) -> str:
 def _warmup_llm_connection() -> None:
     """后台线程执行最小 LLM 请求，提前建立连接。"""
     try:
-        cfg = get_app_config()
+        cfg = get_ai_config()
         chat_cfg = cfg.chat
         llm = get_chat_model(
             cfg,
@@ -140,7 +144,7 @@ class AIService(QObject):
             data = {}
         try:
             result = await self._loop.run_in_executor(
-                self._executor, handle_image_upload, data
+                self._executor, data
             )
             self.ai_response.emit(result)
         except BaseException as exc:

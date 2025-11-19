@@ -58,7 +58,12 @@ class BrowserWidget(QWebEngineView):
                 cx = payload.get('clientX') if isinstance(payload, dict) else None
                 cy = payload.get('clientY') if isinstance(payload, dict) else None
                 print(f"[input_event] kind={kind} type={etype} key={key} code={code} pos=({cx},{cy})")
-                self.input_code_signal.emit(str(code))
+                # 向 Python 侧（Blockly 生成脚本）广播键盘按键信号（如已订阅）
+                if code not in (None, '?'):
+                    try:
+                        self.input_code_signal.emit(str(code))
+                    except Exception:
+                        pass
             except Exception:
                 print(f"[input_event] raw={command_data}")
             return

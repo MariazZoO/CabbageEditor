@@ -118,34 +118,3 @@ def print_state() -> None:
     print(f"[OpticsManager] Total: {count()}")
     for n, o in _optics.items():
         print(f"  - {n}: geo={getattr(o, '_geo', None)}")
-
-
-# ============================================================================
-# 向后兼容：类包装器（可选）
-# ============================================================================
-class OpticsManager:
-    """向后兼容的类包装器，内部调用 DOP 函数"""
-
-    @staticmethod
-    def create(name: str, geometry: Geometry) -> Optics:
-        return create(name, geometry)
-
-    @staticmethod
-    def register(name: str, optics: Optics, geometry: Geometry) -> None:
-        return register(name, optics, geometry)
-
-    @staticmethod
-    def get(name: str) -> Optional[Optics]:
-        return get(name)
-
-    @staticmethod
-    def get_or_create(name: str, geometry: Geometry) -> Optics:
-        return get_or_create(name, geometry)
-
-    @staticmethod
-    def remove(name: str) -> bool:
-        return remove(name)
-
-    @staticmethod
-    def clear() -> None:
-        return clear()

@@ -103,37 +103,3 @@ def print_state() -> None:
     print(f"[KinematicsManager] Total: {count()}")
     for n, k in _kinematics.items():
         print(f"  - {n}: geo={getattr(k, '_geo', None)}")
-
-
-class KinematicsManager:
-    @staticmethod
-    def create(name: str, geometry: Geometry) -> Kinematics:
-        return create(name, geometry)
-
-    @staticmethod
-    def register(name: str, kinematics: Kinematics, geometry: Geometry) -> None:
-        return register(name, kinematics, geometry)
-
-    @staticmethod
-    def get(name: str) -> Optional[Kinematics]:
-        return get(name)
-
-    @staticmethod
-    def get_or_create(name: str, geometry: Geometry) -> Kinematics:
-        return get_or_create(name, geometry)
-
-    @staticmethod
-    def remove(name: str) -> bool:
-        return remove(name)
-
-    @staticmethod
-    def clear() -> None:
-        return clear()
-
-    @staticmethod
-    def play_all(speed: float = 1.0) -> None:
-        return play_all(speed)
-
-    @staticmethod
-    def stop_all() -> None:
-        return stop_all()

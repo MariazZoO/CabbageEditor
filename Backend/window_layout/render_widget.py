@@ -4,7 +4,7 @@ from PySide6.QtWidgets import QWidget
 from ..engine_core.entities.scene import Scene
 from ..engine_core.entities.camera import Camera
 from ..engine_core.entities.viewport import Viewport
-from ..engine_core.managers.scene_manager import SceneManager
+from ..engine_core.managers import scene_manager
 
 class RenderWidget(QWidget):
     geometry_changed = Signal(QRect)
@@ -17,9 +17,8 @@ class RenderWidget(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet("background-color: #282C34;")
 
-        # 使用 SceneManager 创建/获取场景
-        self.scene_manager = SceneManager()  # 单例获取
-        self.scene = self.scene_manager.create_scene("MainScene")
+        # 使用 DOP scene_manager 直接创建/获取场景
+        self.scene = scene_manager.get_or_create("MainScene")
 
         # 创建相机并加入场景（OOP API）
         try:

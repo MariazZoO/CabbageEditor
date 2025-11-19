@@ -18,8 +18,7 @@ if PROJECT_ROOT not in sys.path:
 AI_AVAILABLE = True
 try:
     from Backend.artificial_intelligence.service import (
-        handle_user_message,
-        handle_image_upload,
+        handle_chat,
         handle_image_generation,
     )
 except Exception as e:  # noqa: BLE001
@@ -60,14 +59,15 @@ def healthz():
 # 2) 基于现有 AI 服务的 HTTP 封装（如果可用）
 # ========================
 
+
 @app.post("/api/ai/message")
 def api_ai_message():
     if not AI_AVAILABLE:
         return jsonify({"code": 503, "msg": "AI 服务未加载，无法处理 message"}), 503
     try:
         payload = request.get_json(silent=True) or {}
-        # 直接透传到现有服务函数（返回的是 JSON 字符串）
-        result_str = handle_user_message(payload)
+        # 使用统一的 handle_chat 接口（返回的是 JSON 字符串）
+        result_str = handle_chat(payload)
         return Response(result_str, status=200, mimetype="application/json")
     except Exception as e:  # noqa: BLE001
         logging.exception("/api/ai/message 失败: %s", e)
@@ -95,20 +95,27 @@ def api_ai_upload_image():
         if "file" not in request.files:
             return jsonify({"code": 400, "msg": "缺少文件字段 'file' (multipart/form-data)"}), 400
         f = request.files["file"]
-        data = f.read()
-        category = request.form.get("category") or "user_upload"
-        token = request.form.get("token") or ""
+        import base64
+        data = base64.b64encode(f.read()).decode('utf-8')
+        category = request.form.get("category") or "product"
+        message = request.form.get("message") or ""
         session_id = request.form.get("session_id") or None
+        
+        # 使用统一的 handle_chat 接口格式
         payload = {
-            "data": data,
-            "name": f.filename or "upload.bin",
-
-            "category": category,
-            "token": token,
+            "message": message,
+            "images": [
+                {
+                    "name": f.filename or "upload.bin",
+                    "type": category,
+                    "data": data
+                }
+            ]
         }
         if session_id:
             payload["session_id"] = session_id
-        result_str = handle_image_upload(payload)
+        
+        result_str = handle_chat(payload)
         return Response(result_str, status=200, mimetype="application/json")
     except Exception as e:  # noqa: BLE001
         logging.exception("/api/ai/upload-image 失败: %s", e)

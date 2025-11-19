@@ -65,7 +65,7 @@ def test_tts_tools():
         print('  调用: text_to_speech(text="你好世界")')
 
         try:
-            # 注意：这会发送真实的 HTTP 请求到火山引擎
+            # 注意：这会发送真实的 HTTP 请求到火山引擎（异步模式）
             result = tts_tool.invoke(
                 {
                     "text": "你好世界",
@@ -74,16 +74,24 @@ def test_tts_tools():
                     "loudness_ratio": 1.0,
                     "encoding": "mp3",
                     "rate": 24000,
-                    "output_path": None,
-                    "session_id": "test_session",
+                    "max_wait_seconds": 60,
+                    "poll_interval": 2.0,
                 }
             )
 
             print("  结果:")
-            for line in result.split("\n"):
-                print(f"    {line}")
+            import json
+            result_data = json.loads(result)
+            print(f"    状态: {result_data.get('status')}")
+            print(f"    类型: {result_data.get('type')}")
+            if result_data.get('audio_url'):
+                print(f"    音频URL: {result_data.get('audio_url')}")
+            if result_data.get('duration_ms'):
+                print(f"    时长: {result_data.get('duration_ms')}ms")
+            if result_data.get('error'):
+                print(f"    错误: {result_data.get('error')}")
 
-            if "✅" in result:
+            if result_data.get('status') == 'success':
                 print("\n✓ TTS 工具测试成功！")
                 return True
             else:

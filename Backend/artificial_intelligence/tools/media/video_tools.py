@@ -15,7 +15,6 @@ from Backend.artificial_intelligence.config.config import AppConfig, MediaToolCo
 from Backend.artificial_intelligence.models.client_video import DashScopeVideoClient
 from Backend.artificial_intelligence.models.video_utils import resolve_image_url
 from Backend.artificial_intelligence.storage import get_media_store
-from Backend.artificial_intelligence.tools.session import get_current_session
 
 
 class VideoGenerationInput(BaseModel):
@@ -37,19 +36,11 @@ class VideoGenerationInput(BaseModel):
     image_url: str = Field(
         ...,
         description=(
-            "输入图片的 URL，作为视频生成的起始帧。支持以下三种格式："
-            "\n1) autosave:// URL - 当前会话中上传或 AI 生成的图片，例如 'autosave://session_id/generated/image.png'；"
-            "\n2) data:image/...;base64,... - Base64 编码的图片数据 URI；"
-            "\n3) 本地文件路径 - 系统中的绝对或相对文件路径。"
+            "输入图片的 URL，作为视频生成的起始帧。支持以下格式："
+            "\n1) data:image/...;base64,... - Base64 编码的图片数据 URI（推荐）；"
+            "\n2) http:// 或 https:// - 网络图片 URL；"
+            "\n3) file:// - 本地文件路径（需要是绝对路径）。"
             "\n注意：图片会被解析并转换为模型可接受的格式，如果图片无法加载将返回错误。"
-        ),
-    )
-    session_id: str | None = Field(
-        default=None,
-        description=(
-            "会话 ID，用于标识和隔离不同用户或对话的媒体资源。"
-            "如果省略此参数，系统会自动使用当前活跃的聊天会话 ID。"
-            "生成的视频将保存在对应会话的 generated 目录下。"
         ),
     )
     resolution: str = Field(
@@ -71,16 +62,6 @@ class VideoGenerationInput(BaseModel):
             "扩展后的提示词会在返回结果的 'actual_prompt' 字段中体现，"
             "原始提示词会保留在 'orig_prompt' 字段中。"
             "建议保持默认开启以获得更好的视频效果。"
-        ),
-    )
-    download_video: bool = Field(
-        default=True,
-        description=(
-            "是否自动下载生成的视频到本地存储。"
-            "当设置为 True 时，视频会从云端下载到 autosave/<session_id>/generated/ 目录，"
-            "并在返回结果的 'local_video' 字段中提供本地路径、文件大小等信息。"
-            "如果下载失败，不会影响主流程，但会在 'download_error' 字段中记录错误信息。"
-            "设置为 False 仅返回云端视频 URL，不进行本地存储。"
         ),
     )
 
@@ -110,23 +91,16 @@ def load_video_tools(config: AppConfig) -> List[StructuredTool]:
     def _generate_video(
         prompt: str,
         image_url: str,
-        session_id: str | None = None,
         resolution: str = "720P",
         prompt_extend: bool = True,
-        download_video: bool = True,
     ) -> str:
         """图生视频：根据图片和提示词生成视频。"""
         data = VideoGenerationInput(
             prompt=prompt,
             image_url=image_url,
-            session_id=session_id,
             resolution=resolution,
             prompt_extend=prompt_extend,
-            download_video=download_video,
         )
-
-        # 使用不同的变量名避免覆盖参数
-        active_session_id = data.session_id or get_current_session()
 
         # 验证分辨率参数
         valid_resolutions = {"480P", "720P", "1080P"}
@@ -136,7 +110,6 @@ def load_video_tools(config: AppConfig) -> List[StructuredTool]:
                     "type": "video_generation",
                     "status": "failed",
                     "error": f"无效的分辨率: {data.resolution}，支持的值: {', '.join(valid_resolutions)}",
-                    "session_id": active_session_id,
                 },
                 ensure_ascii=False,
             )
@@ -149,7 +122,6 @@ def load_video_tools(config: AppConfig) -> List[StructuredTool]:
                     "type": "video_generation",
                     "status": "failed",
                     "error": f"无法加载图片：{data.image_url}",
-                    "session_id": active_session_id,
                 },
                 ensure_ascii=False,
             )
@@ -175,7 +147,6 @@ def load_video_tools(config: AppConfig) -> List[StructuredTool]:
                 "video_url": result.get("output", {}).get("video_url"),
                 "task_id": result.get("task_id"),
                 "resolution": data.resolution,
-                "session_id": active_session_id,
             }
 
             # 添加可选字段
@@ -187,47 +158,19 @@ def load_video_tools(config: AppConfig) -> List[StructuredTool]:
             if "usage" in result:
                 payload["usage"] = result["usage"]
 
-            # 如果需要，下载视频到本地
-            if download_video and payload["video_url"]:
-                try:
-                    stored_video = media_store.download_and_save_video(
-                        session_id=active_session_id,
-                        video_url=payload["video_url"],
-                        task_id=payload["task_id"],
-                        prompt=data.prompt,
-                        source_image_url=data.image_url,
-                    )
-
-                    # 添加本地存储信息
-                    payload["local_video"] = {
-                        "name": stored_video.name,
-                        "path": str(stored_video.path),
-                        "url": media_store.build_video_url(stored_video),
-                        "file_size_mb": stored_video.file_size_mb,
-                    }
-                except Exception as e:
-                    # 下载失败不影响主流程，但记录错误信息
-                    import logging
-
-                    logging.getLogger(__name__).warning(
-                        f"视频下载失败 (session={active_session_id}, task={payload['task_id']}): {e}"
-                    )
-                    payload["download_error"] = str(e)
-
             return json.dumps(payload, ensure_ascii=False)
 
         except Exception as e:
             import logging
 
             logging.getLogger(__name__).error(
-                f"视频生成失败 (session={active_session_id}): {e}", exc_info=True
+                f"视频生成失败: {e}", exc_info=True
             )
             return json.dumps(
                 {
                     "type": "video_generation",
                     "status": "failed",
                     "error": str(e),
-                    "session_id": active_session_id,
                 },
                 ensure_ascii=False,
             )
@@ -235,12 +178,11 @@ def load_video_tools(config: AppConfig) -> List[StructuredTool]:
     tool = StructuredTool(
         name="generate_video_from_image",
         description=(
-            "根据图片和文本提示词生成视频（图生视频）。"
+            "根据图片和文本提示词生成视频（图生视频），返回云端视频 URL。"
             "输入需要包含："
             "1) 视频生成提示词（描述动作、场景、运动等）；"
-            "2) 输入图片的 URL（支持 autosave:// URL、base64 data URI 或本地文件路径）。"
+            "2) 输入图片的 URL（支持 base64 data URI、HTTP(S) URL 或 file:// URL）。"
             "可选参数包括分辨率（480P/720P/1080P，默认720P）和提示词扩展开关（默认开启）。"
-            "生成的视频会自动下载到本地并返回本地路径。"
         ),
         args_schema=VideoGenerationInput,
         func=_generate_video,

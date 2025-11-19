@@ -6,7 +6,7 @@
 设计目标：
 - 与现有 image/video/tts 工具的风格保持一致，返回 JSON 字符串
 - 支持同步等待生成完成（轮询任务详情）或立即返回任务ID
-- 自动将生成的首个音频文件下载保存到 autosave/<session_id>/generated/audio/
+- 返回音频 URL 列表，不进行本地下载（下载功能在测试代码中实现）
 - 通过环境变量或配置 provider 读取 API Key
 
 使用前准备：
@@ -31,7 +31,6 @@ import json
 import os
 import time
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Optional
 
 import requests
@@ -39,7 +38,6 @@ from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
 from Backend.artificial_intelligence.config.config import AppConfig
-from Backend.artificial_intelligence.tools.session import get_current_session
 
 _DEFAULT_BASE_URL = "https://api.sunoapi.org"
 
@@ -77,10 +75,6 @@ class TextToBGMInput(BaseModel):
     poll_interval: float = Field(
         default=3.0,
         description="轮询间隔（秒），仅在 wait=True 时生效。",
-    )
-    session_id: Optional[str] = Field(
-        default=None,
-        description="会话ID。若不提供则自动采用当前活动会话。",
     )
 
 
@@ -155,16 +149,6 @@ def _get_music_details(provider: SunoProviderInfo, task_id: str) -> dict:
     return result
 
 
-def _download_audio(url: str, dest: Path) -> None:
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    with requests.get(url, stream=True, timeout=300) as r:
-        r.raise_for_status()
-        with open(dest, "wb") as f:
-            for chunk in r.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
-
-
 # ---------------------------------------------------------------------------
 # 工具加载
 # ---------------------------------------------------------------------------
@@ -187,7 +171,6 @@ def load_music_tools(config: AppConfig):
         wait: bool = True,
         max_wait_seconds: int = 600,
         poll_interval: float = 3.0,
-        session_id: str | None = None,
     ) -> str:
         data = TextToBGMInput(
             prompt=prompt,
@@ -197,9 +180,7 @@ def load_music_tools(config: AppConfig):
             wait=wait,
             max_wait_seconds=max_wait_seconds,
             poll_interval=poll_interval,
-            session_id=session_id,
         )
-        active_session = data.session_id or get_current_session()
 
         if not data.prompt.strip():
             return json.dumps(
@@ -207,7 +188,6 @@ def load_music_tools(config: AppConfig):
                     "type": "bgm_generation",
                     "status": "failed",
                     "error": "提示词不能为空",
-                    "session_id": active_session,
                 },
                 ensure_ascii=False,
             )
@@ -239,7 +219,6 @@ def load_music_tools(config: AppConfig):
                     "type": "bgm_generation",
                     "status": "failed",
                     "error": f"发起生成请求失败: {e}",
-                    "session_id": active_session,
                 },
                 ensure_ascii=False,
             )
@@ -251,7 +230,6 @@ def load_music_tools(config: AppConfig):
             "type": "bgm_generation",
             "status": "submitted" if data.wait else "pending",
             "task_id": task_id,
-            "session_id": active_session,
             "model": data.model,
             "prompt": data.prompt,
             "style": data.style,
@@ -310,7 +288,7 @@ def load_music_tools(config: AppConfig):
                 f"errorCode={error_code}, errorMessage={error_message}"
             )
 
-        # 成功则尝试下载音频
+        # 成功则返回音频URL信息
         # 状态为 SUCCESS 或 FIRST_SUCCESS 时表示生成成功
         if status in {"SUCCESS", "FIRST_SUCCESS"}:
             # 从API响应中提取音频URL: data.response.sunoData[0].audioUrl
@@ -318,76 +296,35 @@ def load_music_tools(config: AppConfig):
             suno_data = response_obj.get("sunoData", [])
 
             if isinstance(suno_data, list) and len(suno_data) > 0:
-                # 保存所有音频的信息
+                # 保存所有音频的URL信息（不下载）
                 result_payload["audio_list"] = []
-                audio_dir = (
-                    Path(os.path.dirname(__file__)).resolve().parents[3]
-                    / "autosave"
-                    / active_session
-                    / "generated"
-                    / "audio"
-                )
 
-                # 下载所有音频文件
                 for idx, audio_item in enumerate(suno_data):
                     audio_url = audio_item.get("audioUrl")
                     if not audio_url:
                         continue
 
-                    try:
-                        # 使用音频ID和标题生成文件名
-                        audio_id = audio_item.get("id", "")
-                        audio_title = audio_item.get("title", "")
-                        safe_title = "".join(
-                            c
-                            for c in audio_title
-                            if c.isalnum() or c in (" ", "-", "_")
-                        )[:50]
-                        filename = f"bgm_{audio_id or task_id or int(time.time())}_{idx+1}_{safe_title}.mp3".replace(
-                            " ", "_"
-                        )
-
-                        audio_path = audio_dir / filename
-                        _download_audio(audio_url, audio_path)
-                        autosave_url = (
-                            f"autosave://{active_session}/generated/audio/{filename}"
-                        )
-
-                        # 保存每个音频的完整信息
-                        audio_info = {
-                            "index": idx + 1,
-                            "id": audio_item.get("id"),
-                            "title": audio_item.get("title"),
-                            "duration": audio_item.get("duration"),
-                            "imageUrl": audio_item.get("imageUrl"),
-                            "modelName": audio_item.get("modelName"),
-                            "tags": audio_item.get("tags"),
-                            "source_url": audio_url,
-                            "local_path": str(audio_path),
-                            "autosave_url": autosave_url,
-                            "file_size_bytes": (
-                                audio_path.stat().st_size if audio_path.exists() else 0
-                            ),
-                        }
-                        result_payload["audio_list"].append(audio_info)
-
-                    except Exception as dl_err:
-                        result_payload.setdefault("download_errors", []).append(
-                            {
-                                "index": idx + 1,
-                                "audio_id": audio_item.get("id"),
-                                "error": str(dl_err),
-                            }
-                        )
+                    # 保存每个音频的信息（仅URL和元数据，不下载）
+                    audio_info = {
+                        "index": idx + 1,
+                        "id": audio_item.get("id"),
+                        "title": audio_item.get("title"),
+                        "duration": audio_item.get("duration"),
+                        "image_url": audio_item.get("imageUrl"),
+                        "model_name": audio_item.get("modelName"),
+                        "tags": audio_item.get("tags"),
+                        "audio_url": audio_url,
+                    }
+                    result_payload["audio_list"].append(audio_info)
 
                 # 为了向后兼容，保留 audio 字段指向第一个音频
                 if result_payload["audio_list"]:
                     first_audio = result_payload["audio_list"][0]
                     result_payload["audio"] = {
-                        "source_url": first_audio["source_url"],
-                        "local_path": first_audio["local_path"],
-                        "autosave_url": first_audio["autosave_url"],
-                        "file_size_bytes": first_audio["file_size_bytes"],
+                        "audio_url": first_audio["audio_url"],
+                        "id": first_audio["id"],
+                        "title": first_audio["title"],
+                        "duration": first_audio["duration"],
                     }
                     result_payload["audio_count"] = len(result_payload["audio_list"])
             else:
@@ -398,9 +335,9 @@ def load_music_tools(config: AppConfig):
     tool = StructuredTool(
         name="generate_bgm_music",
         description=(
-            "根据文本提示词生成背景音乐 (BGM)。支持指定模型版本、时长、风格标签；"
-            "可选择同步等待生成完成并自动下载首个音频文件到本地 autosave 目录。"
-            "返回 JSON 字符串，包含任务ID、状态、可用的音频URL及本地保存信息。"
+            "根据文本提示词生成背景音乐 (BGM)。支持指定模型版本、风格标签；"
+            "可选择同步等待生成完成或立即返回任务ID。"
+            "返回 JSON 字符串，包含任务ID、状态、可用的音频URL列表。"
         ),
         args_schema=TextToBGMInput,
         func=_generate_bgm,

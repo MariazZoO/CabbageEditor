@@ -6,9 +6,6 @@ from typing import Any, Dict, List, Sequence
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
 from Backend.artificial_intelligence.agent.requests import IncomingRequest
-from Backend.artificial_intelligence.storage import get_media_store
-
-_MEDIA_STORE = get_media_store()
 
 
 def extract_text(messages: List[Any]) -> str:
@@ -29,7 +26,7 @@ def extract_text(messages: List[Any]) -> str:
     return str(content)
 
 
-def build_user_message(request: IncomingRequest, uploads: List[str]) -> Dict[str, Any]:
+def build_user_message(request: IncomingRequest) -> Dict[str, Any]:
     blocks: List[Dict[str, Any]] = []
     text = request.text.strip()
     if text:
@@ -46,19 +43,12 @@ def build_user_message(request: IncomingRequest, uploads: List[str]) -> Dict[str
                 # 否则假设是 base64 编码，添加前缀
                 image_url = f"data:image/png;base64,{attachment.data}"
         elif attachment.url:
-            # 将 URL 转换为 base64 data URI
-            data_url = _MEDIA_STORE.load_image_data_url(attachment.url, use_cache=True)
-            if data_url:
-                image_url = data_url
-            else:
-                # 如果转换失败，仍然尝试使用原始 URL（某些 API 可能支持）
-                image_url = attachment.url
+            # 直接使用 URL（可能是 http:// 或其他格式）
+            image_url = attachment.url
 
         if image_url:
             blocks.append({"type": "image_url", "image_url": {"url": image_url}})
-    # 添加上传说明
-    for note in uploads:
-        blocks.append({"type": "text", "text": note})
+    
     if not blocks:
         blocks.append({"type": "text", "text": "[图片上传]"})
     # 只允许text和image_url类型
@@ -121,16 +111,7 @@ def extract_image_payload(messages: Sequence[Any]) -> Dict[str, Any] | None:
             except Exception:
                 continue
             if isinstance(data, dict) and data.get("type") == "image":
-                if "image_base64" not in data:
-                    data_url = _MEDIA_STORE.load_image_data_url(
-                        data.get("image_url") or data.get("image_path")
-                    )
-                    if data_url:
-                        data["image_base64"] = data_url
-                if "image_url" not in data:
-                    url = _MEDIA_STORE.path_to_url(data.get("image_path"))
-                    if url:
-                        data["image_url"] = url
+                # 直接返回工具返回的数据，不再进行额外转换
                 return data
     return None
 

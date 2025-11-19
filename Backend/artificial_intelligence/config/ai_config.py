@@ -2,6 +2,7 @@
 AI 专属配置
 处理 LLM、图像生成、视频生成等 AI 相关配置
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -17,9 +18,7 @@ AI_SETTINGS_FILE_TOML = AI_CONFIG_DIR / "ai_settings.toml"
 AI_SETTINGS_EXAMPLE_FILE = AI_CONFIG_DIR / "ai_settings.example.toml"
 USER_AI_CONFIG_FILE = Path.home() / ".coronaengine" / "ai_settings.toml"
 
-DEFAULT_SYSTEM_PROMPT = (
-    "你是 CabbageEditor 的内置助手。请在回答前检查可用工具，必要时调用 MCP、图像或视频工具；其余情况直接用中文简洁回答。"
-)
+DEFAULT_SYSTEM_PROMPT = "你是 CabbageEditor 的内置助手。请在回答前检查可用工具，必要时调用 MCP、图像或视频工具；其余情况直接用中文简洁回答。"
 
 _AI_CACHE: Optional["AIConfig"] = None
 
@@ -32,6 +31,7 @@ _AI_CACHE: Optional["AIConfig"] = None
 @dataclass(frozen=True)
 class ProviderConfig:
     """AI 服务提供商配置"""
+
     name: str
     type: str = "openai"
     base_url: str | None = None
@@ -42,6 +42,7 @@ class ProviderConfig:
 @dataclass(frozen=True)
 class ChatModelConfig:
     """聊天模型配置"""
+
     provider: str
     model: str
     temperature: float
@@ -52,6 +53,7 @@ class ChatModelConfig:
 @dataclass(frozen=True)
 class ToolModelConfig:
     """工具模型配置"""
+
     provider: str
     model: str
 
@@ -59,6 +61,7 @@ class ToolModelConfig:
 @dataclass(frozen=True)
 class MediaToolConfig:
     """媒体工具配置"""
+
     enable: bool = False
     provider: str | None = None
     model: str | None = None
@@ -68,6 +71,7 @@ class MediaToolConfig:
 @dataclass(frozen=True)
 class MediaConfig:
     """媒体配置（图像/视频）"""
+
     image: MediaToolConfig = field(default_factory=MediaToolConfig)
     video: MediaToolConfig = field(default_factory=MediaToolConfig)
 
@@ -75,18 +79,29 @@ class MediaConfig:
 @dataclass(frozen=True)
 class TTSConfig:
     """TTS 配置"""
+
     appid: str | None = None
     token: str | None = None
 
 
 @dataclass(frozen=True)
+class MusicConfig:
+    """音乐生成配置"""
+
+    api_key: str | None = None
+    base_url: str | None = None
+
+
+@dataclass(frozen=True)
 class AIConfig:
     """AI 配置"""
+
     providers: Dict[str, ProviderConfig]
     chat: ChatModelConfig
     tool_models: Dict[str, ToolModelConfig]
     media: MediaConfig
     tts: TTSConfig
+    music: MusicConfig
 
 
 # ---------------------------------------------------------------------------
@@ -144,7 +159,9 @@ def _load_ini(path: Path) -> Dict[str, Any]:
 
         # 解析 llm_tool_models_mcp section
         if "llm_tool_models_mcp" in config:
-            result.setdefault("llm", {}).setdefault("tool_models", {})["mcp"] = dict(config["llm_tool_models_mcp"])
+            result.setdefault("llm", {}).setdefault("tool_models", {})["mcp"] = dict(
+                config["llm_tool_models_mcp"]
+            )
 
         # 解析 media_image section
         if "media_image" in config:
@@ -262,7 +279,9 @@ def _load_providers(raw: Any) -> Dict[str, ProviderConfig]:
         api_key_env = entry.get("api_key_env")
         if api_key_env:
             api_key = os.getenv(str(api_key_env), api_key)
-        headers = entry.get("headers") if isinstance(entry.get("headers"), Mapping) else {}
+        headers = (
+            entry.get("headers") if isinstance(entry.get("headers"), Mapping) else {}
+        )
         providers[name] = ProviderConfig(
             name=name,
             type=str(entry.get("type", "openai")),
@@ -306,20 +325,38 @@ def _load_tts_config(raw: Mapping[str, Any] | None) -> TTSConfig:
     """加载 TTS 配置"""
     if not isinstance(raw, Mapping):
         return TTSConfig()
-    
+
     appid = raw.get("appid")
     appid_env = raw.get("appid_env")
     if appid_env:
         appid = os.getenv(str(appid_env), appid)
-    
+
     token = raw.get("token")
     token_env = raw.get("token_env")
     if token_env:
         token = os.getenv(str(token_env), token)
-    
+
     return TTSConfig(
         appid=appid,
         token=token,
+    )
+
+
+def _load_music_config(raw: Mapping[str, Any] | None) -> MusicConfig:
+    """加载音乐生成配置"""
+    if not isinstance(raw, Mapping):
+        return MusicConfig()
+
+    api_key = raw.get("api_key")
+    api_key_env = raw.get("api_key_env")
+    if api_key_env:
+        api_key = os.getenv(str(api_key_env), api_key)
+
+    base_url = raw.get("base_url")
+
+    return MusicConfig(
+        api_key=api_key,
+        base_url=base_url,
     )
 
 
@@ -349,6 +386,7 @@ def _build_ai_config() -> AIConfig:
     tool_models = _load_tool_models(llm_section.get("tool_models", {}))
     media = _load_media_config(raw.get("media", {}))
     tts = _load_tts_config(raw.get("tts"))
+    music = _load_music_config(raw.get("music"))
 
     return AIConfig(
         providers=providers,
@@ -356,6 +394,7 @@ def _build_ai_config() -> AIConfig:
         tool_models=tool_models,
         media=media,
         tts=tts,
+        music=music,
     )
 
 
@@ -382,7 +421,7 @@ __all__ = [
     "MediaConfig",
     "MediaToolConfig",
     "TTSConfig",
+    "MusicConfig",
     "get_ai_config",
     "reload_ai_config",
 ]
-

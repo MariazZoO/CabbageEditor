@@ -75,6 +75,7 @@ def test_tts_tools():
                     "encoding": "mp3",
                     "rate": 24000,
                     "output_path": None,
+                    "session_id": "test_session",
                 }
             )
 

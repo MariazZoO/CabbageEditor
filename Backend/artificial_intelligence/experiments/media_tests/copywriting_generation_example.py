@@ -46,6 +46,7 @@ def test_product_copywriting():
                 "product_features": "主动降噪、空间音频、通透模式、长续航",
                 "style": "专业",
                 "length": "中等",
+                "session_id": "test_session",
             }
         )
         print(f"\n生成的产品文案：\n{result}")
@@ -84,6 +85,7 @@ def test_marketing_copywriting():
                 "key_points": "全场五折、满减优惠、限时秒杀",
                 "platform": "小红书",
                 "tone": "激励",
+                "session_id": "test_session",
             }
         )
         print(f"\n生成的营销文案：\n{result}")
@@ -122,6 +124,7 @@ def test_creative_copywriting():
                 "keywords": "绿色、未来、科技",
                 "style": "现代",
                 "length": "简短",
+                "session_id": "test_session",
             }
         )
         print(f"\n生成的创意文案：\n{result}")

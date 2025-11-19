@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Optional
 from pydantic import BaseModel, Field
 from langchain_core.tools import StructuredTool
@@ -14,6 +15,7 @@ from Backend.artificial_intelligence.models.tts_client import (
     create_tts_client,
     AudioConfig,
 )
+from Backend.artificial_intelligence.tools.session import get_current_session
 
 
 class TextToSpeechInput(BaseModel):
@@ -40,7 +42,11 @@ class TextToSpeechInput(BaseModel):
     )
     output_path: Optional[str] = Field(
         default=None,
-        description="输出文件路径，如果提供则会保存音频文件。默认为当前目录的 audio_output.mp3",
+        description="输出文件路径，如果提供则会保存音频文件。默认保存到 autosave/<session_id>/generated/audio/ 目录",
+    )
+    session_id: Optional[str] = Field(
+        default=None,
+        description="会话ID。若不提供则自动采用当前活动会话。",
     )
 
 
@@ -84,6 +90,7 @@ def load_tts_tools(config: AppConfig):
         encoding: str = "mp3",
         rate: int = 24000,
         output_path: Optional[str] = None,
+        session_id: Optional[str] = None,
     ) -> str:
         """
         文本转语音
@@ -96,11 +103,15 @@ def load_tts_tools(config: AppConfig):
             encoding: 音频格式
             rate: 采样率
             output_path: 输出文件路径
+            session_id: 会话ID
 
         Returns:
             包含合成结果的描述字符串
         """
         try:
+            # 获取当前会话ID
+            active_session = session_id or get_current_session()
+            
             # 验证输入
             if not text or not text.strip():
                 return "❌ 错误：文本内容不能为空"
@@ -128,9 +139,23 @@ def load_tts_tools(config: AppConfig):
                 text=text, audio_config=audio_config
             )
 
-            # 确定输出路径
+            # 确定输出路径 - 与 music_tools 保持一致
             if output_path is None:
-                output_path = f"audio_output.{encoding}"
+                # 获取项目根目录（上溯3级到达 CabbageEditor/）
+                audio_dir = (
+                    Path(os.path.dirname(__file__)).resolve().parents[3]
+                    / "autosave"
+                    / active_session
+                    / "generated"
+                    / "audio"
+                )
+                audio_dir.mkdir(parents=True, exist_ok=True)
+                
+                # 生成文件名，包含请求ID和简短的文本摘要
+                reqid = result.get('reqid', 'unknown')[:8]
+                text_preview = "".join(c for c in text[:20] if c.isalnum() or c in (" ", "-", "_"))
+                filename = f"tts_{reqid}_{text_preview}.{encoding}".replace(" ", "_")
+                output_path = str(audio_dir / filename)
             else:
                 # 确保输出目录存在
                 output_dir = os.path.dirname(output_path)
@@ -140,9 +165,13 @@ def load_tts_tools(config: AppConfig):
             # 保存音频文件
             tts_client.save_audio(result["audio"], output_path)
 
-            # 获取文件大小
+            # 获取文件大小和相关信息
             file_size = os.path.getsize(output_path)
             duration = result.get("duration", 0)
+            
+            # 生成 autosave URL
+            output_path_obj = Path(output_path)
+            autosave_url = f"autosave://{active_session}/generated/audio/{output_path_obj.name}"
 
             return (
                 f"✅ 语音合成成功\n"
@@ -150,7 +179,9 @@ def load_tts_tools(config: AppConfig):
                 f"  • 请求ID: {result.get('reqid')}\n"
                 f"  • 音频时长: {duration} ms\n"
                 f"  • 文件大小: {file_size} bytes\n"
-                f"  • 保存路径: {output_path}\n"
+                f"  • 本地路径: {output_path}\n"
+                f"  • 自动保存URL: {autosave_url}\n"
+                f"  • 会话ID: {active_session}\n"
                 f"  • 音色: {voice_type}\n"
                 f"  • 语速: {speed_ratio}x\n"
                 f"  • 音量: {loudness_ratio}x"

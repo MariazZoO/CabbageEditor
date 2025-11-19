@@ -9,6 +9,7 @@ from Backend.artificial_intelligence.tools.mcp import load_mcp_tools
 from Backend.artificial_intelligence.tools.media.image_tools import load_image_tools
 from Backend.artificial_intelligence.tools.media.video_tools import load_video_tools
 from Backend.artificial_intelligence.tools.media.tts_tools import load_tts_tools
+from Backend.artificial_intelligence.tools.media.music_tools import load_music_tools
 
 
 def load_tools(config: AppConfig) -> list[BaseTool]:
@@ -19,6 +20,7 @@ def load_tools(config: AppConfig) -> list[BaseTool]:
     tools.extend(load_image_tools(config))
     tools.extend(load_video_tools(config))
     tools.extend(load_tts_tools(config))
+    tools.extend(load_music_tools(config))
     return tools
 
 

@@ -5,7 +5,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from PySide6.QtCore import QObject, Signal, Slot, QTimer
 
-from Backend.artificial_intelligence.service import handle_chat
+from Backend.artificial_intelligence.service import handle_integrated_entrance
 from Backend.artificial_intelligence.config.ai_config import get_ai_config
 
 from Backend.artificial_intelligence.models import get_chat_model
@@ -99,7 +99,7 @@ class AIService(QObject):
 
             # 在线程池中执行阻塞的 AI 调用
             result = await self._loop.run_in_executor(
-                self._executor, handle_chat, payload
+                self._executor, handle_integrated_entrance, payload
             )
 
             # 发送响应信号
@@ -163,7 +163,7 @@ class AIService(QObject):
         token = data.pop("token", None)  # 保存 token 用于响应
 
         try:
-            result = await self._loop.run_in_executor(self._executor, handle_chat, data)
+            result = await self._loop.run_in_executor(self._executor, handle_integrated_entrance, data)
             # 如果有 token，添加到响应中
             if token:
                 result_data = json.loads(result)

@@ -18,7 +18,7 @@ if PROJECT_ROOT not in sys.path:
 AI_AVAILABLE = True
 try:
     from Backend.artificial_intelligence.service import (
-        handle_chat,
+        handle_integrated_entrance,
         handle_image_generation,
     )
 except Exception as e:  # noqa: BLE001
@@ -67,7 +67,7 @@ def api_ai_message():
     try:
         payload = request.get_json(silent=True) or {}
         # 使用统一的 handle_chat 接口（返回的是 JSON 字符串）
-        result_str = handle_chat(payload)
+        result_str = handle_integrated_entrance(payload)
         return Response(result_str, status=200, mimetype="application/json")
     except Exception as e:  # noqa: BLE001
         logging.exception("/api/ai/message 失败: %s", e)
@@ -115,7 +115,7 @@ def api_ai_upload_image():
         if session_id:
             payload["session_id"] = session_id
         
-        result_str = handle_chat(payload)
+        result_str = handle_integrated_entrance(payload)
         return Response(result_str, status=200, mimetype="application/json")
     except Exception as e:  # noqa: BLE001
         logging.exception("/api/ai/upload-image 失败: %s", e)

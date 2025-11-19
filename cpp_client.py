@@ -52,11 +52,7 @@ def initialize():
     print("Initializing client environment...")
 
     try:
-        # 1. Bootstrap
-        from Backend.utils.bootstrap import bootstrap
-        bootstrap()
-
-        # 2. 创建 Qt 应用
+        # 1. 创建 Qt 应用
         from Backend.window_layout import main_window
         from Backend.utils.cleanup import cleanup_blockly_files
         from Backend.utils.script_runner import ScriptRunner

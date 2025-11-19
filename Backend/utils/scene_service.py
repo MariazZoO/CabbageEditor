@@ -122,3 +122,20 @@ class SceneApplicationService:
     def export_scene(self, scene_name: str) -> str:
         scene = self._get_scene(scene_name)
         return json.dumps(_scene_snapshot(scene), indent=2)
+
+
+_SCENE_SERVICE_SINGLETON: SceneApplicationService | None = None
+
+
+def get_scene_service() -> SceneApplicationService:
+    """Return a process-wide SceneApplicationService instance."""
+    global _SCENE_SERVICE_SINGLETON
+    if _SCENE_SERVICE_SINGLETON is None:
+        _SCENE_SERVICE_SINGLETON = SceneApplicationService()
+    return _SCENE_SERVICE_SINGLETON
+
+
+def set_scene_service(service: SceneApplicationService | None) -> None:
+    """Override the global SceneApplicationService (mainly for tests)."""
+    global _SCENE_SERVICE_SINGLETON
+    _SCENE_SERVICE_SINGLETON = service

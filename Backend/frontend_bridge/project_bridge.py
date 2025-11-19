@@ -2,13 +2,9 @@ from __future__ import annotations
 import json
 from PySide6.QtCore import QObject, Signal, Slot
 
-from Backend.utils.bootstrap import bootstrap
-from Backend.utils.project_service import ProjectApplicationService
+from Backend.utils.project_service import ProjectApplicationService, get_project_service
 from Backend.utils import FileHandler
-from Backend.utils.container import get_container
 from .scene_bridge import SceneService
-
-bootstrap()
 
 
 class ProjectService(QObject):
@@ -17,8 +13,7 @@ class ProjectService(QObject):
 
     def __init__(self, scene_service: SceneService | None = None, parent: QObject | None = None) -> None:
         super().__init__(parent)
-        container = get_container()
-        self.project_service: ProjectApplicationService = container.resolve("project_service")
+        self.project_service: ProjectApplicationService = get_project_service()
         self.scene_service = scene_service
         self.file_handler = FileHandler()
 

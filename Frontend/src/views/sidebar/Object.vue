@@ -1,6 +1,6 @@
 <template>
   <div class=" border-2 border-[#84a65b] min-h-screen relative">
-    <DockTitleBar title="模型属性" extraClass="bg-[#84A65B] rounded-t-md" @close="CloseFloat" />
+    <DockTitleBar title="模型属性" extraClass="bg-[#84A65B] rounded-t-md" @close="CloseFloat"/>
     <!-- 四周拖动边框 -->
     <div class="absolute top-0 left-0 w-full h-2 cursor-n-resize z-40" @mousedown="(e) => startResize(e, 'n')"></div>
     <div class="absolute bottom-0 left-0 w-full h-2 cursor-s-resize z-40" @mousedown="(e) => startResize(e, 's')"></div>
@@ -24,10 +24,10 @@
       <!-- 标签页切换 -->
       <div class="flex border-b border-gray-400 bg-[#686868]/70">
         <button
-            @click="ActiveTab = 'BlocklyProgram'"
-            :class="[ActiveTab === 'BlocklyProgram' ? 'bg-gray-700 text-white' : 'bg-[#a8a4a3]/80 hover:bg-gray-600 text-black']"
+            @click="ActiveTab = 'Params'"
+            :class="[ActiveTab === 'Params' ? 'bg-gray-700 text-white' : 'bg-[#a8a4a3]/80 hover:bg-gray-600 text-black']"
             class="flex-1 px-4 py-2 text-sm hover:bg-[#a8a4a3]/80 transition-colors duration-200">
-          Blockly编程
+          调整
         </button>
         <button
             @click="ActiveTab = 'Material'"
@@ -36,29 +36,17 @@
           材质
         </button>
         <button
-            @click="ActiveTab = 'Params'"
-            :class="[ActiveTab === 'Params' ? 'bg-gray-700 text-white' : 'bg-[#a8a4a3]/80 hover:bg-gray-600 text-black']"
+            @click="ActiveTab = 'BlocklyProgram'"
+            :class="[ActiveTab === 'BlocklyProgram' ? 'bg-gray-700 text-white' : 'bg-[#a8a4a3]/80 hover:bg-gray-600 text-black']"
             class="flex-1 px-4 py-2 text-sm hover:bg-[#a8a4a3]/80 transition-colors duration-200">
-          调参
-        </button>
-        <button
-            @click="ActiveTab = 'Light'"
-            :class="[ActiveTab === 'Light' ? 'bg-gray-700 text-white' : 'bg-[#a8a4a3]/80 hover:bg-gray-600 text-black']"
-            class="flex-1 px-4 py-2 text-sm hover:bg-[#a8a4a3]/80 transition-colors duration-200">
-          光照强度
-        </button>
-        <button
-            @click="ActiveTab = 'Size'"
-            :class="[ActiveTab === 'Size' ? 'bg-gray-700 text-white' : 'bg-[#a8a4a3]/80 hover:bg-gray-600 text-black']"
-            class="flex-1 px-4 py-2 text-sm hover:bg-[#a8a4a3]/80 transition-colors duration-200">
-          大小
+          Blockly编程
         </button>
       </div>
 
       <div class="flex-1 overflow-auto">
         <!-- Blockly编程 Tab -->
-        <div v-show="ActiveTab === 'BlocklyProgram'" class="h-full">
-          <div id="blockdiv" class="blockly-container"></div>
+        <div v-show="ActiveTab === 'BlocklyProgram'" class="h-full flex flex-col">
+          <div id="blockdiv" class="blockly-container flex-1"></div>
         </div>
 
         <!-- 材质Tab -->
@@ -116,14 +104,6 @@
           </div>
         </div>
 
-        <!-- 光照强度Tab -->
-        <div v-show="ActiveTab === 'Light'" class="p-4 text-white">
-          <!-- 功能补充 -->
-        </div>
-        <!-- 大小Tab -->
-        <div v-show="ActiveTab === 'Size'" class="p-4 text-white">
-          <!-- 功能补充 -->
-        </div>
       </div>
     </div>
 
@@ -164,7 +144,7 @@
 </template>
 
 <script setup>
-import {ref, onMounted, onUnmounted} from 'vue';
+import {ref, onMounted, onUnmounted, watch, nextTick} from 'vue';
 import {useRoute} from 'vue-router';
 import * as Blockly from 'blockly/core';
 import * as CN from 'blockly/msg/zh-hans';
@@ -175,7 +155,10 @@ import DockTitleBar from '@/components/ui/DockTitleBar.vue'
 async function waitWebChannel() {
   if (window.sceneService || window.appService || window.scriptingService) return true;
   if (window.webChannelReady) {
-    try { await window.webChannelReady; } catch {}
+    try {
+      await window.webChannelReady;
+    } catch {
+    }
   }
   return !!(window.sceneService || window.appService || window.scriptingService);
 }
@@ -186,7 +169,7 @@ const character = ref('');
 const px = ref('0.0'), py = ref('0.0'), pz = ref('0.0');
 const rx = ref('0.0'), ry = ref('0.0'), rz = ref('0.0');
 const sx = ref('1.0'), sy = ref('1.0'), sz = ref('1.0');
-const ActiveTab = ref('BlocklyProgram');
+const ActiveTab = ref('Params');
 
 const route = useRoute();
 const scenename = ref(null);
@@ -518,6 +501,35 @@ const handleResizeUp = () => {
   if (dragState.value.isResizing) stopResize();
 };
 
+const resizeBlockly = () => {
+  try {
+    if (!workspace.value) return;
+    const div = document.getElementById('blockdiv');
+    if (!div) return;
+    const parent = div.parentElement;
+    if (parent) {
+      // 让容器填满父级空间
+      div.style.width = parent.clientWidth + 'px';
+      div.style.height = parent.clientHeight + 'px';
+    }
+    if (typeof Blockly !== 'undefined' && workspace.value) {
+      Blockly.svgResize(workspace.value);
+    }
+  } catch (e) {
+    console.error('resizeBlockly 失败:', e);
+  }
+};
+
+watch(ActiveTab, (val) => {
+  if (val === 'BlocklyProgram') {
+    nextTick(() => resizeBlockly());
+  }
+});
+
+const handleWindowResize = () => {
+  if (ActiveTab.value === 'BlocklyProgram') resizeBlockly();
+};
+
 onMounted(() => {
   try {
     scenename.value = route.query.sceneName || '';
@@ -537,6 +549,11 @@ onMounted(() => {
     if (typeof stopDrag === 'function') {
       document.addEventListener('mouseup', stopDrag);
     }
+    window.addEventListener('resize', handleWindowResize);
+    // 初次进入如果默认是 BlocklyProgram，也执行一次
+    if (ActiveTab.value === 'BlocklyProgram') {
+      nextTick(() => resizeBlockly());
+    }
   } catch (err) {
     console.error('Object.vue mounted 初始化异常:', err);
   }
@@ -547,6 +564,7 @@ onUnmounted(() => {
   document.removeEventListener('mouseup', handleResizeUp);
   document.removeEventListener('mousemove', onDrag);
   document.removeEventListener('mouseup', stopDrag);
+  window.removeEventListener('resize', handleWindowResize);
 });
 </script>
 
@@ -554,9 +572,15 @@ onUnmounted(() => {
 .blockly-container {
   width: 100%;
   height: 100%;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  background-color: #fff;
+  min-height: 400px; /* 防止高度塌陷 */
+  position: relative;
+  overflow: hidden; /* 避免内部滚动条影响渲染尺寸计算 */
+}
+
+/* 让 blockly 内部 svg 适配容器 */
+.blockly-container :deep(.blocklyWorkspace) {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 #blockdiv :deep(.blocklyZoom) {

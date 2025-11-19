@@ -10,7 +10,7 @@ from typing import Dict, Any
 from dashscope import VideoSynthesis
 import dashscope
 
-from Backend.artificial_intelligence.config.config import ProviderConfig
+from Backend.artificial_intelligence.config.ai_config import ProviderConfig
 from Backend.artificial_intelligence.models.video_utils import TaskPoller
 
 

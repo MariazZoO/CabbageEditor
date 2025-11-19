@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
-from Backend.artificial_intelligence.config.config import ProviderConfig
+from Backend.artificial_intelligence.config.ai_config import ProviderConfig
 from Backend.artificial_intelligence.storage import AUTOSAVE_URL_SCHEME
 
 

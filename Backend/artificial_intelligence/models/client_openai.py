@@ -3,7 +3,7 @@ from __future__ import annotations
 from langchain_openai import ChatOpenAI
 from langchain_core.language_models.chat_models import BaseChatModel
 
-from Backend.artificial_intelligence.config.config import ProviderConfig
+from Backend.artificial_intelligence.config.ai_config import ProviderConfig
 
 
 def build_openai_chat(

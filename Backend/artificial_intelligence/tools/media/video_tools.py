@@ -11,7 +11,7 @@ from typing import List
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
-from Backend.artificial_intelligence.config.config import AppConfig, MediaToolConfig
+from Backend.artificial_intelligence.config.ai_config import AIConfig, MediaToolConfig
 from Backend.artificial_intelligence.models.client_video import DashScopeVideoClient
 from Backend.artificial_intelligence.models.video_utils import resolve_image_url
 from Backend.artificial_intelligence.storage import get_media_store
@@ -52,7 +52,7 @@ class VideoGenerationInput(BaseModel):
     )
 
 
-def load_video_tools(config: AppConfig) -> List[StructuredTool]:
+def load_video_tools(config: AIConfig) -> List[StructuredTool]:
     """
     加载视频生成工具
 
@@ -215,7 +215,7 @@ def load_video_tools(config: AppConfig) -> List[StructuredTool]:
     return [tool]
 
 
-def _is_media_tool_enabled(cfg: MediaToolConfig, config: AppConfig) -> bool:
+def _is_media_tool_enabled(cfg: MediaToolConfig, config: AIConfig) -> bool:
     """检查媒体工具是否启用"""
     if not cfg.enable:
         return False

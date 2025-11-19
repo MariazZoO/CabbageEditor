@@ -4,14 +4,14 @@ from typing import Any
 
 from langchain.agents import create_agent
 
-from Backend.artificial_intelligence.config.config import AppConfig, get_app_config
+from Backend.artificial_intelligence.config.ai_config import AIConfig, get_ai_config
 from Backend.artificial_intelligence.models import get_chat_model
 from Backend.artificial_intelligence.tools import load_tools
 
 _CACHED_AGENT: Any = None
 
 
-def _build_agent(config: AppConfig) -> Any:
+def _build_agent(config: AIConfig) -> Any:
     chat_cfg = config.chat
     llm = get_chat_model(
         config,
@@ -31,7 +31,7 @@ def _build_agent(config: AppConfig) -> Any:
 def create_default_agent(force_reload: bool = False) -> Any:
     global _CACHED_AGENT
     if _CACHED_AGENT is None or force_reload:
-        _CACHED_AGENT = _build_agent(get_app_config())
+        _CACHED_AGENT = _build_agent(get_ai_config())
     return _CACHED_AGENT
 
 

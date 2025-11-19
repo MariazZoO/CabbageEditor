@@ -15,8 +15,8 @@ if str(project_root) not in sys.path:
 from Backend.artificial_intelligence.service import (
     handle_image_generation,
     handle_video_generation,
-    handle_copywriting_generation,
-    handle_tts_generation,
+    handle_text_generation,
+    handle_speech_generation,
     handle_music_generation,
 )
 
@@ -38,7 +38,7 @@ def test_copywriting_service():
     }
 
     try:
-        result = handle_copywriting_generation(payload)
+        result = handle_text_generation(payload)
         data = json.loads(result)
 
         print(f"状态: {data.get('status')}")
@@ -66,7 +66,7 @@ def test_tts_service():
     }
 
     try:
-        result = handle_tts_generation(payload)
+        result = handle_speech_generation(payload)
         data = json.loads(result)
 
         print(f"状态: {data.get('status')}")

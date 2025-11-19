@@ -33,7 +33,7 @@ from Backend.artificial_intelligence.agent.requests import normalize_request
 _MEDIA_STORE = get_media_store()
 
 
-def handle_chat(payload: Any) -> str:
+def handle_integrated_entrance(payload: Any) -> str:
     """
     统一的聊天接口，支持以下三种调用方式：
 
@@ -67,12 +67,12 @@ def handle_chat(payload: Any) -> str:
         if isinstance(payload, list):
             # 检查是否是 BaseMessage 列表
             if payload and isinstance(payload[0], BaseMessage):
-                return _handle_langchain_messages(payload, default_session_id())
+                return _build_langchain_messages(payload, default_session_id())
             # 检查是否是标准消息格式的字典列表
             elif payload and isinstance(payload[0], dict) and "role" in payload[0]:
                 # 转换为 BaseMessage 列表
                 messages = _convert_to_base_messages(payload)
-                return _handle_langchain_messages(messages, default_session_id())
+                return _build_langchain_messages(messages, default_session_id())
 
         # 情况1和2: 用户消息（可能带图片）
         request = normalize_request(payload, default_session_id())
@@ -342,7 +342,7 @@ def _convert_to_base_messages(message_dicts: List[Dict[str, Any]]) -> List[BaseM
     return messages
 
 
-def _handle_langchain_messages(messages: List[BaseMessage], session_id: str) -> str:
+def _build_langchain_messages(messages: List[BaseMessage], session_id: str) -> str:
     """
     处理 LangChain 消息列表的内部方法
     """
@@ -409,7 +409,7 @@ def _fallback_completion(history: List[BaseMessage]) -> str:
     return content
 
 
-def handle_copywriting_generation(payload: Any) -> str:
+def handle_text_generation(payload: Any) -> str:
     """
     处理独立的文案生成请求
 
@@ -530,7 +530,7 @@ def handle_copywriting_generation(payload: Any) -> str:
         return json.dumps(error_response, ensure_ascii=False)
 
 
-def handle_tts_generation(payload: Any) -> str:
+def handle_speech_generation(payload: Any) -> str:
     """
     处理独立的TTS语音合成请求
 
@@ -708,10 +708,10 @@ def handle_music_generation(payload: Any) -> str:
 
 
 __all__ = [
-    "handle_chat",
+    "handle_integrated_entrance",
     "handle_image_generation",
     "handle_video_generation",
-    "handle_copywriting_generation",
-    "handle_tts_generation",
+    "handle_text_generation",
+    "handle_speech_generation",
     "handle_music_generation",
 ]

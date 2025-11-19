@@ -26,10 +26,8 @@ from Backend.artificial_intelligence.tools.session import (
     set_current_session,
 )
 
-from Backend.artificial_intelligence.agent.requests import (
-    normalize_request,
-    normalize_upload_request,
-)
+from Backend.artificial_intelligence.agent.requests import normalize_request
+
 
 _MEDIA_STORE = get_media_store()
 

@@ -4,6 +4,7 @@ import os
 from ..components.geometry import Geometry
 from ..components.mechanics import Mechanics
 from ..components.kinematics import Kinematics
+from ..components.acoustics import Acoustics
 from ..components.optics import Optics
 from ..engine_import import load_corona_engine
 
@@ -43,16 +44,16 @@ class Actor:
             self._geometry = Geometry(path)
             self._optics = Optics(self._geometry)
             # 可选组件（按需创建）
-            # self._mechanics = Mechanics(self._geometry)
-            # self._kinematics = Kinematics(self._geometry)
-            # self._acoustics = Acoustics(self._geometry)
+            self._mechanics = Mechanics(self._geometry)
+            self._kinematics = Kinematics(self._geometry)
+            self._acoustics = Acoustics(self._geometry)
 
             prof = ActorProfile()
             prof.geometry = self._geometry.engine_obj
             prof.optics = self._optics.engine_obj
-            # prof.mechanics = self._mechanics.engine_obj if hasattr(self, '_mechanics') else None
-            # prof.kinematics = self._kinematics.engine_obj if hasattr(self, '_kinematics') else None
-            # prof.acoustics = self._acoustics.engine_obj if hasattr(self, '_acoustics') else None
+            prof.mechanics = self._mechanics.engine_obj if hasattr(self, '_mechanics') else None
+            prof.kinematics = self._kinematics.engine_obj if hasattr(self, '_kinematics') else None
+            prof.acoustics = self._acoustics.engine_obj if hasattr(self, '_acoustics') else None
 
             stored = self.engine_obj.add_profile(prof)
             if stored is None:

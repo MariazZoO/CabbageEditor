@@ -15,7 +15,7 @@ from Backend.artificial_intelligence.service import handle_image_generation
 
 def test_image_generation():
     """直接测试图像生成功能"""
-    payload = {"prompt": "一只可爱的奶牛猫，写实风格", "session_id": "test_session"}
+    payload = {"prompt": "一只可爱的奶牛猫，写实风格"}
 
     print(f"发送请求: {payload}")
 
@@ -47,13 +47,11 @@ def test_image_edit(image_url):
 
     payload = {
         "prompt": "将这张图片变成卡通风格",
-        "session_id": "test_session",
         "product_url": image_url,  # 使用测试1生成的图片
-        "use_references": True,
     }
 
     print("\n发送图片编辑请求")
-    print(f"  输入图片: {image_url}")
+    print(f"  输入图片: {image_url[:50]}...")
     print(f"  编辑提示: {payload['prompt']}")
 
     try:

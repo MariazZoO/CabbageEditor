@@ -1,4 +1,4 @@
-from PySide6.QtCore import QRect, Signal, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget
 
 from ..engine_core.entities.scene import Scene
@@ -7,8 +7,6 @@ from ..engine_core.entities.viewport import Viewport
 from ..engine_core.managers import scene_manager
 
 class RenderWidget(QWidget):
-    geometry_changed = Signal(QRect)
-
     def __init__(self, Main_Window):
         super(RenderWidget, self).__init__()
         self.Main_Window = Main_Window

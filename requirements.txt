@@ -28,5 +28,4 @@ langchain-openai
 langchain-mcp-adapters
 langsmith
 
-
-
+dashscope

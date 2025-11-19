@@ -24,6 +24,13 @@ if not app_config.runtime.enable_gpu:
 # 确保 repo_root 在 sys.path 中
 sys.path.append(str(app_config.paths.repo_root))
 
+# 4. 初始化日志（尽早进行）
+try:
+    from Backend.utils.logging import configure_logging
+    configure_logging()
+except Exception:
+    pass
+
 
 def main():
     """

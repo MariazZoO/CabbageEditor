@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Any, List
 
@@ -20,15 +19,6 @@ class IncomingRequest:
     images: List[ImageAttachment]
 
 
-@dataclass(frozen=True)
-class ImageUploadRequest:
-    session_id: str
-    name: str
-    category: str
-    data: str
-    token: str | None = None
-
-
 def normalize_request(raw: Any, default_session: str) -> IncomingRequest:
     if isinstance(raw, IncomingRequest):
         return raw
@@ -41,30 +31,6 @@ def normalize_request(raw: Any, default_session: str) -> IncomingRequest:
         images = coerce_images(raw.get("images"))
         return IncomingRequest(session_id=session_id, text=text, images=images)
     return IncomingRequest(session_id=session_id, text=str(raw), images=[])
-
-
-def normalize_upload_request(raw: Any, default_session: str) -> ImageUploadRequest:
-    if isinstance(raw, str):
-        try:
-            raw = json.loads(raw)
-        except Exception:
-            raw = {}
-    if not isinstance(raw, dict):
-        raw = {}
-    session_id = str(raw.get("session_id") or default_session)
-    name = str(raw.get("name") or "image")
-    category = str(raw.get("type") or "product")
-    data = str(raw.get("data") or "")
-    token = raw.get("token")
-    if not data:
-        raise ValueError("缺少图片数据")
-    return ImageUploadRequest(
-        session_id=session_id,
-        name=name,
-        category=category,
-        data=data,
-        token=str(token) if token else None,
-    )
 
 
 def coerce_images(value: Any) -> List[ImageAttachment]:
@@ -88,8 +54,6 @@ def coerce_images(value: Any) -> List[ImageAttachment]:
 __all__ = [
     "ImageAttachment",
     "IncomingRequest",
-    "ImageUploadRequest",
     "normalize_request",
-    "normalize_upload_request",
     "coerce_images",
 ]

@@ -6,6 +6,7 @@
 - 全局配置: config/app_config.py  (运行时、路径)
 - AI 配置: Backend/artificial_intelligence/config/ai_config.py  (LLM、媒体工具)
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -30,13 +31,12 @@ from .ai_config import (
     ToolModelConfig,
     MediaConfig,
     MediaToolConfig,
+    TTSConfig,
+    MusicConfig,
 )
 
 _CACHE: Optional["AppConfig"] = None
-DEFAULT_SYSTEM_PROMPT = (
-    "你是 CabbageEditor 的内置助手。请在回答前检查可用工具，必要时调用 MCP、图像或视频工具；其余情况直接用中文简洁回答。"
-)
-
+DEFAULT_SYSTEM_PROMPT = "你是 CabbageEditor 的内置助手。请在回答前检查可用工具，必要时调用 MCP、图像或视频工具；其余情况直接用中文简洁回答。"
 
 
 # ---------------------------------------------------------------------------
@@ -50,10 +50,13 @@ class AppConfig:
     兼容性配置类
     合并了全局配置和 AI 配置，保持与旧代码的兼容
     """
+
     providers: Dict[str, ProviderConfig]
     chat: ChatModelConfig
     tool_models: Dict[str, ToolModelConfig]
     media: MediaConfig
+    tts: TTSConfig
+    music: MusicConfig
     runtime: RuntimeConfig
     paths: PathsConfig
 
@@ -80,6 +83,8 @@ def _build_app_config() -> AppConfig:
         chat=ai_config.chat,
         tool_models=ai_config.tool_models,
         media=ai_config.media,
+        tts=ai_config.tts,
+        music=ai_config.music,
         runtime=global_config.runtime,
         paths=global_config.paths,
     )
@@ -105,6 +110,8 @@ __all__ = [
     "ToolModelConfig",
     "MediaConfig",
     "MediaToolConfig",
+    "TTSConfig",
+    "MusicConfig",
     "RuntimeConfig",
     "PathsConfig",
     "get_app_config",

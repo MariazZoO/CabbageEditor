@@ -52,7 +52,7 @@ class ScriptingService(QObject):
                         with open(sf_path, 'r', encoding='utf-8') as sf_f:
                             content = sf_f.read()
                         new_content = content.replace('from utils.', 'from Backend.utils.').replace(
-                            'from corona_engine_fallback import', 'from Backend.tools.corona_engine_fallback import')
+                            'from corona_engine_fallback import', 'from Backend.engine_core.corona_engine_fallback import')
                         if new_content != content:
                             with open(sf_path, 'w', encoding='utf-8') as sf_f:
                                 sf_f.write(new_content)

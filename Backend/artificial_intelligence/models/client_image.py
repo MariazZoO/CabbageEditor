@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import httpx
 
 from Backend.artificial_intelligence.config.ai_config import ProviderConfig
-from Backend.artificial_intelligence.storage import AUTOSAVE_URL_SCHEME
+# from Backend.artificial_intelligence.storage import AUTOSAVE_URL_SCHEME
 
 
 class LingyaImageClient:
@@ -125,10 +125,10 @@ class LingyaImageClient:
             elif source.startswith("data:"):
                 images.append(source)
             # 如果是本地路径或autosave URL，转换为base64
-            else:
-                data = _load_image_as_data_uri(store, source)
-                if data:
-                    images.append(data)
+            # else:
+                # data = _load_image_as_data_uri(store, source)
+            #     if data:
+            #         images.append(data)
         return images
 
 

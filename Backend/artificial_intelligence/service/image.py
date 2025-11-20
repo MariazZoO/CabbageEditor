@@ -7,9 +7,10 @@ from Backend.artificial_intelligence.config.ai_config import get_ai_config
 
 from Backend.artificial_intelligence.service.common import (
     ensure_dict,
+    extract_latest_user_content,
+    extract_parameter,
     make_error,
     make_response,
-    require_fields,
     session_context,
 )
 
@@ -20,19 +21,32 @@ def handle_image_generation(payload: Any) -> str:
     """
     request_data: Dict[str, Any] = ensure_dict(payload)
     try:
-        require_fields(request_data, ["prompt"])
-
         session_id = request_data.get("session_id")
-        prompt = request_data.get("prompt")
-        product_url = request_data.get("product_url")
-        scene_url = request_data.get("scene_url")
+
+        # 提取 prompt
+        prompt = ""
+        user_content = extract_latest_user_content(request_data)
+        if user_content:
+            for part in user_content.get("part", []):
+                if part.get("content_type") == "text":
+                    prompt = part.get("content_text", "")
+                    break
+
+        if not prompt:
+            prompt = extract_parameter(request_data, "prompt")
+
+        if not prompt:
+            raise ValueError("缺少必需参数: prompt")
+
+        product_url = extract_parameter(request_data, "product_url")
+        scene_url = extract_parameter(request_data, "scene_url")
 
         cfg = get_ai_config()
-        from Backend.artificial_intelligence.tools.text import (
-            load_text_tools,
+        from Backend.artificial_intelligence.tools.media.image_tools import (
+            load_image_tools,
         )
 
-        tools = load_text_tools(cfg)
+        tools = load_image_tools(cfg)
         if not tools:
             raise RuntimeError("图像生成功能未启用或配置不完整")
 
@@ -48,21 +62,33 @@ def handle_image_generation(payload: Any) -> str:
         tool_result = json.loads(result_json)
         image_url = tool_result.get("image_url", "")
 
+        parts = [
+            {
+                "content_type": "image",
+                "content_url": image_url,
+                "parameter": {
+                    "resolution": tool_result.get(
+                        "resolution", "1:1"
+                    )  # 假设默认分辨率
+                },
+            }
+        ]
+
+        # 如果有 prompt 返回，也可以包含
+        if tool_result.get("prompt"):
+            parts.append(
+                {"content_type": "text", "content_text": tool_result.get("prompt")}
+            )
+
         return make_response(
-            response_type="image_generation",
+            interface_type="image",
             session_id=sid,
-            prompt=tool_result.get("prompt", prompt),
-            image={
-                "name": "",
-                "path": "",
-                "url": image_url,
-                "base64": "",
-            },
+            parts=parts,
         )
 
     except Exception as exc:  # noqa: BLE001
         return make_error(
-            "image_generation",
+            "image",
             request_data.get("session_id"),
             exc,
         )

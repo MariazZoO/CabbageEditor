@@ -1,4 +1,4 @@
-from Backend.artificial_intelligence.service.chat import handle_integrated_entrance
+from Backend.artificial_intelligence.service.integrated import handle_integrated_entrance
 from Backend.artificial_intelligence.service.image import handle_image_generation
 from Backend.artificial_intelligence.service.video import handle_video_generation
 from Backend.artificial_intelligence.service.text import handle_text_generation

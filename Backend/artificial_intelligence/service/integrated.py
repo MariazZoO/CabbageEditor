@@ -34,29 +34,27 @@ def handle_integrated_entrance(payload: Any) -> str:
 
         image_payload = extract_image_payload(messages)
 
-        response_type = (
-            image_payload.get("type", "ai_response") if image_payload else "ai_response"
-        )
+        parts = []
+        if content:
+            parts.append({"content_type": "text", "content_text": content})
 
-        extra: Dict[str, Any] = {"content": content}
         if image_payload:
-            extra.update(
-                {
-                    "image_base64": image_payload.get("image_base64"),
-                    "image_name": image_payload.get("image_name"),
-                    "image_path": image_payload.get("image_path"),
-                    "image_url": image_payload.get("image_url"),
-                }
-            )
+            image_part = {
+                "content_type": "image",
+                "content_url": image_payload.get("image_url") or "",
+                # 如果有 base64，可能需要处理，但 llms.txt 主要是 content_url
+            }
+            # 如果有其他参数，可以放入 parameter
+            parts.append(image_part)
 
         return make_response(
-            response_type=response_type,
+            interface_type="integrated",
             session_id=session_id,
-            **extra,
+            parts=parts,
         )
 
     except Exception as exc:  # noqa: BLE001
-        return make_error("ai_response", request_data.get("session_id"), exc)
+        return make_error("integrated", request_data.get("session_id"), exc)
 
 
 __all__ = ["handle_integrated_entrance"]

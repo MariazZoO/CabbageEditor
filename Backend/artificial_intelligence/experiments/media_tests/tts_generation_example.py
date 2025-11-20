@@ -14,87 +14,62 @@ sys.path.insert(0, str(repo_root))
 
 def test_tts_tools():
     """测试 TTS 工具"""
-    from Backend.artificial_intelligence.config.ai_config import get_ai_config
-    from Backend.artificial_intelligence.tools.base import load_tools
+    from Backend.artificial_intelligence.service import handle_speech_generation
+    import json
 
     print("=" * 60)
     print("语音合成工具 (TTS) 测试")
     print("=" * 60)
 
     try:
-        # 加载配置
-        print("\n1. 正在加载配置...")
-        config = get_ai_config()
-        print("✓ 配置加载成功")
-
-        # 检查 TTS 配置
-        print("\n2. 检查 TTS 配置...")
-        if not config.tts.appid or not config.tts.token:
-            print("⚠ 警告：TTS 未配置 (appid 或 token 缺失)")
-            print("  请在 app_config.toml 中配置 TTS 凭证")
-            print("  配置位置: [tts] 部分")
-            return False
-        print("✓ TTS 配置正确")
-        print(f"  - AppID: {config.tts.appid[:10]}...")
-        print(f"  - Token: {config.tts.token[:10]}...")
-
-        # 加载工具
-        print("\n3. 正在加载所有工具...")
-        tools = load_tools(config)
-        print(f"✓ 成功加载 {len(tools)} 个工具")
-
-        # 查找 TTS 工具
-        print("\n4. 查找 text_to_speech 工具...")
-        tts_tool = None
-        for tool in tools:
-            if tool.name == "text_to_speech":
-                tts_tool = tool
-                break
-
-        if tts_tool:
-            print("✓ 找到 text_to_speech 工具")
-            print(f"  - 描述: {tts_tool.description}")
-            print(f"  - 参数: {list(tts_tool.args_schema.model_fields.keys())}")
-        else:
-            print("✗ 未找到 text_to_speech 工具")
-            print(f"  可用工具: {[t.name for t in tools]}")
-            return False
-
         # 测试工具调用
         print("\n5. 测试工具调用...")
-        print('  调用: text_to_speech(text="你好世界")')
+        print('  调用: handle_speech_generation(text="你好世界")')
+
+        payload = {
+            "session_id": "test_session",
+            "llm_content": [
+                {
+                    "role": "user",
+                    "interface_type": "speech",
+                    "part": [{"content_type": "text", "content_text": "你好世界"}],
+                    "parameter": {
+                        "voice_type": "zh_female_cancan_mars_bigtts",
+                        "speed_ratio": 1.0,
+                        "loudness_ratio": 1.0,
+                        "encoding": "mp3",
+                        "rate": 24000,
+                        "max_wait_seconds": 60,
+                        "poll_interval": 2.0,
+                    },
+                }
+            ],
+        }
 
         try:
             # 注意：这会发送真实的 HTTP 请求到火山引擎（异步模式）
-            result = tts_tool.invoke(
-                {
-                    "text": "你好世界",
-                    "voice_type": "zh_female_cancan_mars_bigtts",
-                    "speed_ratio": 1.0,
-                    "loudness_ratio": 1.0,
-                    "encoding": "mp3",
-                    "rate": 24000,
-                    "max_wait_seconds": 60,
-                    "poll_interval": 2.0,
-                }
-            )
+            result = handle_speech_generation(payload)
 
             print("  结果:")
-            import json
             result_data = json.loads(result)
-            print(f"    状态: {result_data.get('status')}")
-            print(f"    类型: {result_data.get('type')}")
-            if result_data.get('audio_url'):
-                print(f"    音频URL: {result_data.get('audio_url')}")
-            if result_data.get('duration_ms'):
-                print(f"    时长: {result_data.get('duration_ms')}ms")
-            if result_data.get('error'):
-                print(f"    错误: {result_data.get('error')}")
+            print(f"    状态码: {result_data.get('error_code')}")
 
-            if result_data.get('status') == 'success':
+            if result_data.get("error_code") == 0:
+                llm_content = result_data.get("llm_content", [])
+                if llm_content:
+                    parts = llm_content[0].get("part", [])
+                    for part in parts:
+                        if part.get("content_type") == "audio":
+                            print(f"    音频URL: {part.get('content_url')}")
+                            params = part.get("parameter", {})
+                            print(f"    时长: {params.get('duration')}s")
+
+                metadata = result_data.get("metadata", {})
+                print(f"    任务ID: {metadata.get('task_id')}")
                 print("\n✓ TTS 工具测试成功！")
                 return True
             else:
+                print(f"    错误: {result_data.get('status_info')}")
                 print("\n✗ TTS 工具返回错误")
                 return False
 
@@ -114,56 +89,7 @@ def test_tts_tools():
         return False
 
 
-def test_import():
-    """测试导入"""
-    print("=" * 60)
-    print("导入测试")
-    print("=" * 60)
-
-    try:
-        print("\n正在测试导入...")
-
-        print("  • 导入 tts_client...")
-        from Backend.artificial_intelligence.models.client_speech import (
-            create_speech_client,  # noqa: F401
-            AudioConfig,  # noqa: F401
-        )
-
-        print("    ✓")
-
-        print("  • 导入 tts_tools...")
-        from Backend.artificial_intelligence.tools.media.speech_tools import (
-            load_speech_tools,  # noqa: F401
-        )
-
-        print("    ✓")
-
-        print("  • 导入配置...")
-        from Backend.artificial_intelligence.config.ai_config import (
-            get_ai_config,  # noqa: F401
-            TTSConfig,  # noqa: F401
-        )
-
-        print("    ✓")
-
-        print("\n✓ 所有导入成功")
-        return True
-
-    except Exception as e:
-        print(f"\n✗ 导入失败: {str(e)}")
-        import traceback
-
-        traceback.print_exc()
-        return False
-
-
 if __name__ == "__main__":
-    # 首先测试导入
-    if not test_import():
-        sys.exit(1)
-
-    print("\n")
-
     # 然后测试工具
     if not test_tts_tools():
         print("\n⚠ 注意: 如果上面显示 'TTS 未配置'，请按照以下步骤配置:")

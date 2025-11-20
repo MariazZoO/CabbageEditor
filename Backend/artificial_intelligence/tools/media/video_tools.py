@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from Backend.artificial_intelligence.config.ai_config import AIConfig, MediaToolConfig
 from Backend.artificial_intelligence.models.client_video import DashScopeVideoClient
 from Backend.artificial_intelligence.models.video_utils import resolve_image_url
-from Backend.artificial_intelligence.storage import get_media_store
+# from Backend.artificial_intelligence.storage import get_media_store
 
 
 class VideoGenerationInput(BaseModel):
@@ -86,7 +86,7 @@ def load_video_tools(config: AIConfig) -> List[StructuredTool]:
         model=video_cfg.model or "wan2.2-i2v-flash",
         base_url=video_cfg.base_url,
     )
-    media_store = get_media_store()
+    # media_store = get_media_store()
 
     def _generate_video(
         prompt: str,
@@ -115,7 +115,7 @@ def load_video_tools(config: AIConfig) -> List[StructuredTool]:
             )
 
         # 准备图片 URL
-        image_url = resolve_image_url(data.image_url, media_store)
+        image_url = resolve_image_url(data.image_url, None)
         if not image_url:
             return json.dumps(
                 {

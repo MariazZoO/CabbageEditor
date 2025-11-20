@@ -7,9 +7,10 @@ from Backend.artificial_intelligence.config.ai_config import get_ai_config
 
 from Backend.artificial_intelligence.service.common import (
     ensure_dict,
+    extract_latest_user_content,
+    extract_parameter,
     make_error,
     make_response,
-    require_fields,
     session_context,
 )
 
@@ -20,10 +21,22 @@ def handle_speech_generation(payload: Any) -> str:
     """
     request_data: Dict[str, Any] = ensure_dict(payload)
     try:
-        require_fields(request_data, ["text"])
-
         session_id = request_data.get("session_id")
-        text = request_data.get("text")
+
+        # 提取 text
+        text = ""
+        user_content = extract_latest_user_content(request_data)
+        if user_content:
+            for part in user_content.get("part", []):
+                if part.get("content_type") == "text":
+                    text = part.get("content_text", "")
+                    break
+
+        if not text:
+            text = extract_parameter(request_data, "text")
+
+        if not text:
+            raise ValueError("缺少必需参数: text")
 
         cfg = get_ai_config()
         from Backend.artificial_intelligence.tools.media.speech_tools import (
@@ -38,15 +51,15 @@ def handle_speech_generation(payload: Any) -> str:
 
         tool_params = {
             "text": text,
-            "voice_type": request_data.get(
-                "voice_type", "zh_female_cancan_mars_bigtts"
+            "voice_type": extract_parameter(
+                request_data, "voice_type", "zh_female_cancan_mars_bigtts"
             ),
-            "speed_ratio": request_data.get("speed_ratio", 1.0),
-            "loudness_ratio": request_data.get("loudness_ratio", 1.0),
-            "encoding": request_data.get("encoding", "mp3"),
-            "rate": request_data.get("rate", 24000),
-            "max_wait_seconds": request_data.get("max_wait_seconds", 60),
-            "poll_interval": request_data.get("poll_interval", 2.0),
+            "speed_ratio": extract_parameter(request_data, "speed_ratio", 1.0),
+            "loudness_ratio": extract_parameter(request_data, "loudness_ratio", 1.0),
+            "encoding": extract_parameter(request_data, "encoding", "mp3"),
+            "rate": extract_parameter(request_data, "rate", 24000),
+            "max_wait_seconds": extract_parameter(request_data, "max_wait_seconds", 60),
+            "poll_interval": extract_parameter(request_data, "poll_interval", 2.0),
         }
 
         with session_context(session_id) as sid:
@@ -54,23 +67,34 @@ def handle_speech_generation(payload: Any) -> str:
 
         tool_result = json.loads(result_json)
 
+        parts = []
+        if tool_result.get("audio_url"):
+            parts.append(
+                {
+                    "content_type": "audio",
+                    "content_url": tool_result.get("audio_url"),
+                    "url_expire_time": tool_result.get("url_expire_time"),
+                    "parameter": {
+                        "duration": tool_result.get("duration"),
+                        "speech_type": tool_result.get("voice_type"),
+                    },
+                }
+            )
+
         return make_response(
-            response_type="tts_generation",
-            status=tool_result.get("status", "success"),
+            interface_type="speech",
             session_id=sid,
-            task_id=tool_result.get("task_id"),
-            audio_url=tool_result.get("audio_url"),
-            duration=tool_result.get("duration"),
-            req_text_length=tool_result.get("req_text_length"),
-            url_expire_time=tool_result.get("url_expire_time"),
-            encoding=tool_result.get("encoding"),
-            voice_type=tool_result.get("voice_type"),
-            error=tool_result.get("error"),
+            parts=parts,
+            metadata={
+                "task_id": tool_result.get("task_id"),
+                "req_text_length": tool_result.get("req_text_length"),
+                "encoding": tool_result.get("encoding"),
+            },
         )
 
     except Exception as exc:  # noqa: BLE001
         return make_error(
-            "tts_generation",
+            "speech",
             request_data.get("session_id"),
             exc,
         )

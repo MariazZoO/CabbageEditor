@@ -10,12 +10,12 @@ from langchain_core.tools import StructuredTool
 
 from Backend.artificial_intelligence.config.ai_config import AIConfig
 from Backend.artificial_intelligence.models.client_speech import (
-    create_tts_client,
+    create_speech_client,
     AudioConfig,
 )
 
 
-class TextToSpeechInput(BaseModel):
+class SpeechInput(BaseModel):
     """文本转语音的输入参数"""
 
     text: str = Field(description="待合成的文本内容")
@@ -43,7 +43,7 @@ class TextToSpeechInput(BaseModel):
     )
 
 
-def load_tts_tools(config: AIConfig):
+def load_speech_tools(config: AIConfig):
     """
     加载语音合成工具
 
@@ -61,9 +61,9 @@ def load_tts_tools(config: AIConfig):
     """
 
     # 从配置中获取TTS凭证
-    tts_config = config.tts
-    appid = tts_config.appid
-    token = tts_config.token
+    speech_config = config.tts
+    appid = speech_config.appid
+    token = speech_config.token
 
     if not appid or not token:
         print(
@@ -73,7 +73,7 @@ def load_tts_tools(config: AIConfig):
         return []
 
     # 创建TTS客户端
-    tts_client = create_tts_client(appid=appid, access_token=token)
+    speech_client = create_speech_client(appid=appid, access_token=token)
 
     def _text_to_speech(
         text: str,
@@ -149,7 +149,7 @@ def load_tts_tools(config: AIConfig):
             )
 
             # 异步模式：提交任务并轮询
-            result = tts_client.synthesize_async(
+            result = speech_client.synthesize_async(
                 text=text,
                 audio_config=audio_config,
                 max_wait_seconds=max_wait_seconds,
@@ -184,10 +184,10 @@ def load_tts_tools(config: AIConfig):
         func=_text_to_speech,
         name="text_to_speech",
         description="使用火山引擎TTS将文本转换为语音。异步提交任务并返回音频URL，支持多种音色、语速、音量和格式调整。",
-        args_schema=TextToSpeechInput,
+        args_schema=SpeechInput,
     )
 
     return [tool]
 
 
-__all__ = ["load_tts_tools"]
+__all__ = ["load_speech_tools"]

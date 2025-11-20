@@ -244,21 +244,45 @@ function createToken() {
 
 async function uploadImageToBackend({type, name, data}) {
   const token = createToken();
-  const payload = {
-    token,
-    type,
-    name,
-    data,
+  
+  // 构造符合 llms.txt 规范的请求
+  // 这里我们模拟一个用户发送图片的消息，后端处理后会返回包含图片 URL 的响应
+  const payloadObj = {
     session_id: sessionId.value,
+    llm_content: [
+      {
+        role: "user",
+        interface_type: "integrated", // 或者 image? 但 integrated 更通用
+        sent_time_stamp: Date.now(),
+        part: [
+          {
+            content_type: "image",
+            content_url: data, // base64
+            parameter: {
+               // 可以在这里传递 type (product/scene)
+               // 但目前后端 integrated 接口可能不直接处理这个 parameter
+               // 暂时保持简单，后端会自动处理上传
+            }
+          }
+        ]
+      }
+    ],
+    metadata: {
+      token: token, // 用于回调匹配
+      upload_type: type // 辅助信息
+    }
   };
+  
+  const payload = JSON.stringify(payloadObj);
+  
   const promise = new Promise((resolve, reject) => {
     uploadResolvers.set(token, {resolve, reject});
   });
   await waitWebChannel();
   if (window.aiService && typeof window.aiService.upload_image === 'function') {
-    window.aiService.upload_image(JSON.stringify(payload));
+    window.aiService.upload_image(payload);
   } else if (window.pyBridge && typeof window.pyBridge.upload_image === 'function') {
-    window.pyBridge.upload_image(JSON.stringify(payload));
+    window.pyBridge.upload_image(payload);
   } else {
     uploadResolvers.delete(token);
     throw new Error("未发现图片上传通道 (aiService/pyBridge)");
@@ -353,7 +377,41 @@ async function waitWebChannel() {
 
 const SendMessageToAI = async (query, extra = {}) => {
   await waitWebChannel();
-  const payloadObj = {message: query, session_id: sessionId.value, ...extra};
+  
+  // 构造符合 llms.txt 规范的请求
+  const parts = [];
+  if (query) {
+    parts.push({
+      content_type: "text",
+      content_text: query
+    });
+  }
+  
+  if (extra.images && extra.images.length > 0) {
+    extra.images.forEach(img => {
+      parts.push({
+        content_type: "image",
+        content_url: img.url,
+        parameter: {
+          resolution: "1024x1024" // 默认或从 img 获取
+        }
+      });
+    });
+  }
+
+  const payloadObj = {
+    session_id: sessionId.value,
+    llm_content: [
+      {
+        role: "user",
+        interface_type: "integrated",
+        sent_time_stamp: Date.now(),
+        part: parts
+      }
+    ],
+    metadata: {}
+  };
+  
   const payload = JSON.stringify(payloadObj);
   
   // 返回 Promise 以便调用者处理结果
@@ -551,7 +609,7 @@ window.receiveAIMessage = (data) => {
       try {
         message = JSON.parse(data);
       } catch {
-        message = {content: data};
+        message = {content: data}; // Fallback for plain string
       }
     }
 
@@ -559,17 +617,32 @@ window.receiveAIMessage = (data) => {
       sessionId.value = message.session_id;
     }
 
-    if (message.type === 'image_upload') {
-      const handler = message.token ? uploadResolvers.get(message.token) : null;
+    // 处理图片上传回调 (通过 metadata 中的 token)
+    const token = message.metadata?.token;
+    if (token) {
+      const handler = uploadResolvers.get(token);
       if (handler) {
-        uploadResolvers.delete(message.token);
-        if (message.status === 'success') {
-          handler.resolve(message);
+        uploadResolvers.delete(token);
+        if (message.error_code === 0) {
+           // 尝试从 llm_content 中提取 image url
+           let imageUrl = "";
+           if (message.llm_content && message.llm_content.length > 0) {
+             const content = message.llm_content[0];
+             if (content.part) {
+               const imgPart = content.part.find(p => p.content_type === 'image');
+               if (imgPart) imageUrl = imgPart.content_url;
+             }
+           }
+           // 构造旧格式的返回以便兼容 uploadImageToBackend 的逻辑
+           handler.resolve({
+             image: { url: imageUrl },
+             content: message.status_info
+           });
         } else {
-          handler.reject(new Error(message.content || '上传失败'));
+          handler.reject(new Error(message.status_info || '上传失败'));
         }
       }
-      return;
+      return; // 如果是上传回调，不再作为聊天消息显示
     }
 
     // 收到 AI 回复时，将最后一条"发送中"的用户消息标记为成功
@@ -578,26 +651,67 @@ window.receiveAIMessage = (data) => {
       lastUserMessage.status = 'success';
     }
 
-    if (message.type === 'error') {
-      console.error('AI处理错误:', message.content);
+    if (message.error_code !== 0) {
+      console.error('AI处理错误:', message.status_info);
       // 将用户消息标记为失败
       if (lastUserMessage) {
         lastUserMessage.status = 'failed';
-        lastUserMessage.error = message.content;
+        lastUserMessage.error = message.status_info;
       }
+      return;
     }
 
-    // 如果返回包含 image_base64 也展示图片
-    const msgObj = {
-      sender: "AI",
-      text: message.content || message.text || (message.type === 'image' ? '[图片]' : JSON.stringify(message)),
-      status: 'success'
-    };
-    if (message.image_base64) {
-      msgObj.imageData = message.image_base64;
-      msgObj.imageName = message.image_name || 'image';
+    // 解析 llm_content 显示消息
+    if (message.llm_content && Array.isArray(message.llm_content)) {
+      message.llm_content.forEach(content => {
+        if (content.role === 'assistant') {
+          let textContent = "";
+          let images = [];
+          
+          if (content.part && Array.isArray(content.part)) {
+            content.part.forEach(part => {
+              if (part.content_type === 'text') {
+                textContent += part.content_text + "\n";
+              } else if (part.content_type === 'image') {
+                images.push({
+                  preview: part.content_url, // 或者是 base64
+                  name: 'image'
+                });
+              }
+            });
+          }
+          
+          const msgObj = {
+            sender: "AI",
+            text: textContent.trim(),
+            status: 'success'
+          };
+          
+          if (images.length === 1) {
+            msgObj.imageData = images[0].preview;
+            msgObj.imageName = images[0].name;
+          } else if (images.length > 1) {
+            msgObj.images = images;
+          }
+          
+          // 如果既没有文本也没有图片，可能是空响应或纯指令
+          if (!msgObj.text && !msgObj.imageData && !msgObj.images) {
+             // 忽略空消息
+             return;
+          }
+
+          messages.value.push(msgObj);
+        }
+      });
+    } else {
+       // 兼容旧格式或 fallback
+       const msgObj = {
+          sender: "AI",
+          text: message.content || JSON.stringify(message),
+          status: 'success'
+       };
+       messages.value.push(msgObj);
     }
-    messages.value.push(msgObj);
 
     // 滚动到底部
     nextTick(() => {

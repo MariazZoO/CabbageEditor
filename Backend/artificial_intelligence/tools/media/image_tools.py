@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from Backend.artificial_intelligence.config.ai_config import AIConfig, MediaToolConfig
 from Backend.artificial_intelligence.models.client_image import LingyaImageClient
-from Backend.artificial_intelligence.storage import get_media_store
+# from Backend.artificial_intelligence.storage import get_media_store
 
 
 class ImageGenerationInput(BaseModel):
@@ -68,7 +68,7 @@ def load_image_tools(config: AIConfig) -> List[StructuredTool]:
         model=image_cfg.model,
         base_url=image_cfg.base_url,
     )
-    store = get_media_store()
+    # store = get_media_store()
 
     def _generate(
         prompt: str,
@@ -86,7 +86,7 @@ def load_image_tools(config: AIConfig) -> List[StructuredTool]:
         image_url, mime_type = client.generate(
             prompt=data.prompt,
             aspect_ratio=data.aspect_ratio,
-            store=store,
+            store=None,
             product_url=data.product_url,
             scene_url=data.scene_url,
         )

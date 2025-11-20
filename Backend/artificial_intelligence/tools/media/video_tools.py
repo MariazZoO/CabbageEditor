@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import os
 from typing import List
 
 from langchain_core.tools import StructuredTool
@@ -13,8 +14,11 @@ from pydantic import BaseModel, Field
 
 from Backend.artificial_intelligence.config.ai_config import AIConfig, MediaToolConfig
 from Backend.artificial_intelligence.models.client_video import DashScopeVideoClient
-from Backend.artificial_intelligence.models.video_utils import resolve_image_url
-from Backend.artificial_intelligence.storage import get_media_store
+from Backend.artificial_intelligence.models.video_utils import (
+    resolve_image_url,
+    resize_image_with_constraints,
+)
+# from Backend.artificial_intelligence.storage import get_media_store
 
 
 class VideoGenerationInput(BaseModel):
@@ -86,7 +90,7 @@ def load_video_tools(config: AIConfig) -> List[StructuredTool]:
         model=video_cfg.model or "wan2.2-i2v-flash",
         base_url=video_cfg.base_url,
     )
-    media_store = get_media_store()
+    # media_store = get_media_store()
 
     def _generate_video(
         prompt: str,
@@ -115,7 +119,7 @@ def load_video_tools(config: AIConfig) -> List[StructuredTool]:
             )
 
         # 准备图片 URL
-        image_url = resolve_image_url(data.image_url, media_store)
+        image_url = resolve_image_url(data.image_url, None)
         if not image_url:
             return json.dumps(
                 {
@@ -125,6 +129,21 @@ def load_video_tools(config: AIConfig) -> List[StructuredTool]:
                 },
                 ensure_ascii=False,
             )
+
+        # 如果是本地文件，尝试压缩以避免上传超时
+        if image_url.startswith("file://"):
+            try:
+                local_path = image_url[7:]
+                if os.path.exists(local_path):
+                    # 压缩图片 (限制最大边长 1280，兼顾质量和速度)
+                    resized_path = resize_image_with_constraints(
+                        local_path, max_size=1280
+                    )
+                    image_url = f"file://{resized_path}"
+            except Exception as e:
+                import logging
+
+                logging.getLogger(__name__).warning(f"图片压缩失败: {e}")
 
         # 生成视频
         try:

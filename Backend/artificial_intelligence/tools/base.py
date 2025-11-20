@@ -4,7 +4,7 @@ from langchain_core.tools import BaseTool
 
 from Backend.artificial_intelligence.config.ai_config import AIConfig
 from Backend.artificial_intelligence.tools.builtin import load_builtin_tools
-# from Backend.artificial_intelligence.tools.text import load_text_tools
+from Backend.artificial_intelligence.tools.text import load_text_tools
 from Backend.artificial_intelligence.tools.mcp import load_mcp_tools
 from Backend.artificial_intelligence.tools.media.image_tools import load_image_tools
 from Backend.artificial_intelligence.tools.media.video_tools import load_video_tools

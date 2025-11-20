@@ -40,10 +40,10 @@ def handle_speech_generation(payload: Any) -> str:
 
         cfg = get_ai_config()
         from Backend.artificial_intelligence.tools.media.speech_tools import (
-            load_tts_tools,
+            load_speech_tools,
         )
 
-        tools = load_tts_tools(cfg)
+        tools = load_speech_tools(cfg)
         if not tools:
             raise RuntimeError("TTS语音合成功能未启用或配置不完整")
 
@@ -69,27 +69,29 @@ def handle_speech_generation(payload: Any) -> str:
 
         parts = []
         if tool_result.get("audio_url"):
+            # 仅保留 API 文档定义的参数
+            speech_params = {}
+            if tool_result.get("duration"):
+                speech_params["duration"] = tool_result.get("duration")
+            if tool_result.get("voice_type"):
+                speech_params["speech_type"] = tool_result.get("voice_type")
+
             parts.append(
                 {
                     "content_type": "audio",
                     "content_url": tool_result.get("audio_url"),
                     "url_expire_time": tool_result.get("url_expire_time"),
-                    "parameter": {
-                        "duration": tool_result.get("duration"),
-                        "speech_type": tool_result.get("voice_type"),
-                    },
+                    "parameter": speech_params,
                 }
             )
+
+        metadata = request_data.get("metadata", {})
 
         return make_response(
             interface_type="speech",
             session_id=sid,
             parts=parts,
-            metadata={
-                "task_id": tool_result.get("task_id"),
-                "req_text_length": tool_result.get("req_text_length"),
-                "encoding": tool_result.get("encoding"),
-            },
+            metadata=metadata,
         )
 
     except Exception as exc:  # noqa: BLE001

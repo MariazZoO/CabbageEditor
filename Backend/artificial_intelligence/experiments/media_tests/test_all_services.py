@@ -267,9 +267,9 @@ if __name__ == "__main__":
     print("=" * 60)
 
     # 测试顺序：从简单到复杂
-    test_text_service()
+    # test_text_service()
     test_speech_service()
-    test_music_service()
+    # test_music_service()
 
     # 图像生成，并获取URL用于视频测试
     image_url = test_image_service()

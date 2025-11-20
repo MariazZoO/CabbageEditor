@@ -47,10 +47,13 @@ def handle_integrated_entrance(payload: Any) -> str:
             # 如果有其他参数，可以放入 parameter
             parts.append(image_part)
 
+        metadata = request_data.get("metadata", {})
+
         return make_response(
             interface_type="integrated",
             session_id=session_id,
             parts=parts,
+            metadata=metadata,
         )
 
     except Exception as exc:  # noqa: BLE001

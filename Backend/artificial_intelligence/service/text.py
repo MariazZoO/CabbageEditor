@@ -102,6 +102,7 @@ def handle_text_generation(payload: Any) -> str:
             interface_type="text",
             session_id=sid,
             parts=parts,
+            metadata=metadata,
         )
 
     except Exception as exc:  # noqa: BLE001

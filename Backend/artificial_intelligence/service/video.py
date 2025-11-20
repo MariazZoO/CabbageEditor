@@ -75,14 +75,18 @@ def handle_video_generation(payload: Any) -> str:
 
         parts = []
         if tool_result.get("video_url"):
+            # 仅保留 API 文档定义的参数
+            video_params = {}
+            if tool_result.get("resolution") or resolution:
+                video_params["resolution"] = tool_result.get("resolution", resolution)
+            if tool_result.get("duration"):
+                video_params["duration"] = tool_result.get("duration")
+
             parts.append(
                 {
                     "content_type": "video",
                     "content_url": tool_result.get("video_url"),
-                    "parameter": {
-                        "resolution": tool_result.get("resolution", resolution),
-                        "duration": tool_result.get("duration"),
-                    },
+                    "parameter": video_params,
                 }
             )
 
@@ -92,21 +96,7 @@ def handle_video_generation(payload: Any) -> str:
                 {"content_type": "text", "content_text": tool_result.get("prompt")}
             )
 
-        metadata = {
-            "source": tool_result.get("source", ""),
-            "model": tool_result.get("model", ""),
-            "task_id": tool_result.get("task_id", ""),
-        }
-
-        for optional_field in [
-            "orig_prompt",
-            "actual_prompt",
-            "usage",
-            "local_video",
-            "download_error",
-        ]:
-            if optional_field in tool_result:
-                metadata[optional_field] = tool_result[optional_field]
+        metadata = request_data.get("metadata", {})
 
         return make_response(
             interface_type="video",

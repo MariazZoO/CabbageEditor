@@ -69,14 +69,18 @@ def handle_music_generation(payload: Any) -> str:
         parts = []
         audio_list = tool_result.get("audio_list", [])
         for audio_url in audio_list:
+            # 仅保留 API 文档定义的参数
+            music_params = {}
+            if tool_result.get("duration"):
+                music_params["duration"] = tool_result.get("duration")
+            if tool_result.get("style"):
+                music_params["music_style"] = tool_result.get("style")
+
             parts.append(
                 {
                     "content_type": "audio",
                     "content_url": audio_url,
-                    "parameter": {
-                        "duration": tool_result.get("duration"),
-                        "music_style": tool_result.get("style"),
-                    },
+                    "parameter": music_params,
                 }
             )
 
@@ -84,15 +88,13 @@ def handle_music_generation(payload: Any) -> str:
         if not parts and tool_result.get("status") == "error":
             raise RuntimeError(tool_result.get("error", "Unknown error"))
 
+        metadata = request_data.get("metadata", {})
+
         return make_response(
             interface_type="music",
             session_id=sid,
             parts=parts,
-            metadata={
-                "task_id": tool_result.get("task_id"),
-                "model": tool_result.get("model"),
-                "audio_count": tool_result.get("audio_count", 0),
-            },
+            metadata=metadata,
         )
 
     except Exception as exc:  # noqa: BLE001

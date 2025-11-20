@@ -80,10 +80,13 @@ def handle_image_generation(payload: Any) -> str:
                 {"content_type": "text", "content_text": tool_result.get("prompt")}
             )
 
+        metadata = request_data.get("metadata", {})
+
         return make_response(
             interface_type="image",
             session_id=sid,
             parts=parts,
+            metadata=metadata,
         )
 
     except Exception as exc:  # noqa: BLE001

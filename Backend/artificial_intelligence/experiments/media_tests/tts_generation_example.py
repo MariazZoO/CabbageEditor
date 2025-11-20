@@ -124,7 +124,7 @@ def test_import():
         print("\n正在测试导入...")
 
         print("  • 导入 tts_client...")
-        from Backend.artificial_intelligence.models.tts_client import (
+        from Backend.artificial_intelligence.models.client_speech import (
             create_tts_client,  # noqa: F401
             AudioConfig,  # noqa: F401
         )
@@ -132,7 +132,7 @@ def test_import():
         print("    ✓")
 
         print("  • 导入 tts_tools...")
-        from Backend.artificial_intelligence.tools.media.tts_tools import (
+        from Backend.artificial_intelligence.tools.media.speech_tools import (
             load_tts_tools,  # noqa: F401
         )
 

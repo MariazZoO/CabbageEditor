@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from langchain_core.tools import StructuredTool
 
 from Backend.artificial_intelligence.config.ai_config import AIConfig
-from Backend.artificial_intelligence.models.tts_client import (
+from Backend.artificial_intelligence.models.client_speech import (
     create_tts_client,
     AudioConfig,
 )

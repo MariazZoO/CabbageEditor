@@ -14,7 +14,7 @@ from Backend.artificial_intelligence.models import get_chat_model
 
 
 # 定义参数模式
-class ProductCopywritingInput(BaseModel):
+class ProductTextInput(BaseModel):
     """产品文案生成的输入参数"""
     product_name: str = Field(description="产品名称")
     product_features: str = Field(description="产品特点或卖点，用逗号分隔")
@@ -22,7 +22,7 @@ class ProductCopywritingInput(BaseModel):
     length: str = Field(default="中等", description="文案长度，可选：简短、中等、详细")
 
 
-class MarketingCopywritingInput(BaseModel):
+class MarketingTextInput(BaseModel):
     """营销文案生成的输入参数"""
     theme: str = Field(description="营销主题，如：618大促、新品发布、会员日等")
     target_audience: str = Field(description="目标受众，如：年轻人、企业主、家庭用户等")
@@ -31,7 +31,7 @@ class MarketingCopywritingInput(BaseModel):
     tone: str = Field(default="激励", description="文案语气，可选：激励、温暖、紧迫、趣味")
 
 
-class CreativeCopywritingInput(BaseModel):
+class CreativeTextInput(BaseModel):
     """创意文案生成的输入参数"""
     content_type: str = Field(description="内容类型，如：故事、诗歌、剧本、广告语、slogan等")
     theme: str = Field(description="创作主题")
@@ -40,7 +40,7 @@ class CreativeCopywritingInput(BaseModel):
     length: str = Field(default="中等", description="作品长度，可选：简短、中等、长篇")
 
 
-def load_copywriting_tools(config: AIConfig) -> List[StructuredTool]:
+def load_text_tools(config: AIConfig) -> List[StructuredTool]:
     """
     加载文案生成工具
 
@@ -65,9 +65,8 @@ def load_copywriting_tools(config: AIConfig) -> List[StructuredTool]:
         request_timeout=60.0,
     )
 
-    def _generate_product_copywriting(
-        product_name: str,
-        product_features: str,
+    def _generate_product_text(
+        instruction: str,
         style: str = "专业",
         length: str = "中等",
     ) -> str:
@@ -75,8 +74,7 @@ def load_copywriting_tools(config: AIConfig) -> List[StructuredTool]:
         生成产品文案
 
         Args:
-            product_name: 产品名称
-            product_features: 产品特点或卖点（用逗号分隔）
+            instruction: 产品描述及要求
             style: 文案风格（可选：专业、活泼、高端、亲切、幽默）
             length: 文案长度（可选：简短、中等、详细）
 
@@ -90,10 +88,9 @@ def load_copywriting_tools(config: AIConfig) -> List[StructuredTool]:
         }
 
         prompt = f"""
-请为以下产品生成{style}风格的文案，长度约{length_map.get(length, '150-200字')}：
+请根据以下产品描述和要求，生成{style}风格的文案，长度约{length_map.get(length, '150-200字')}：
 
-产品名称：{product_name}
-产品特点：{product_features}
+需求描述：{instruction}
 
 要求：
 1. 突出产品的核心卖点
@@ -112,10 +109,8 @@ def load_copywriting_tools(config: AIConfig) -> List[StructuredTool]:
         response = llm.invoke(messages)
         return response.content
 
-    def _generate_marketing_copywriting(
-        theme: str,
-        target_audience: str,
-        key_points: str,
+    def _generate_marketing_text(
+        instruction: str,
         platform: str = "通用",
         tone: str = "激励",
     ) -> str:
@@ -123,9 +118,7 @@ def load_copywriting_tools(config: AIConfig) -> List[StructuredTool]:
         生成营销文案
 
         Args:
-            theme: 营销主题（如：618大促、新品发布、会员日等）
-            target_audience: 目标受众（如：年轻人、企业主、家庭用户等）
-            key_points: 营销要点（用逗号分隔）
+            instruction: 营销活动描述及要求
             platform: 投放平台（可选：通用、微信、微博、抖音、小红书）
             tone: 文案语气（可选：激励、温暖、紧迫、趣味）
 
@@ -141,11 +134,9 @@ def load_copywriting_tools(config: AIConfig) -> List[StructuredTool]:
         }
 
         prompt = f"""
-请为以下营销活动生成{tone}语气的文案：
+请根据以下营销活动描述，生成{tone}语气的文案：
 
-营销主题：{theme}
-目标受众：{target_audience}
-营销要点：{key_points}
+需求描述：{instruction}
 投放平台：{platform}
 
 平台建议：{platform_tips.get(platform, platform_tips['通用'])}
@@ -167,10 +158,8 @@ def load_copywriting_tools(config: AIConfig) -> List[StructuredTool]:
         response = llm.invoke(messages)
         return response.content
 
-    def _generate_creative_copywriting(
-        content_type: str,
-        theme: str,
-        keywords: Optional[str] = None,
+    def _generate_creative_text(
+        instruction: str,
         style: str = "现代",
         length: str = "中等",
     ) -> str:
@@ -178,9 +167,7 @@ def load_copywriting_tools(config: AIConfig) -> List[StructuredTool]:
         生成创意文案
 
         Args:
-            content_type: 内容类型（如：故事、诗歌、剧本、广告语、slogan等）
-            theme: 创作主题
-            keywords: 关键词（可选，用逗号分隔）
+            instruction: 创作主题及要求
             style: 创作风格（可选：现代、古典、浪漫、科技、悬疑等）
             length: 作品长度（可选：简短、中等、长篇）
 
@@ -193,12 +180,10 @@ def load_copywriting_tools(config: AIConfig) -> List[StructuredTool]:
             "长篇": "800-1000字",
         }
 
-        keywords_text = f"\n关键词：{keywords}" if keywords else ""
-
         prompt = f"""
-请创作一个{style}风格的{content_type}：
+请根据以下主题和要求，创作一个{style}风格的作品：
 
-创作主题：{theme}{keywords_text}
+需求描述：{instruction}
 作品长度：{length_map.get(length, '300-500字')}
 
 要求：
@@ -222,34 +207,22 @@ def load_copywriting_tools(config: AIConfig) -> List[StructuredTool]:
     tools = [
         StructuredTool(
             name="generate_product_copywriting",
-            description=(
-                "生成产品文案。用于创作产品描述、卖点提炼、产品广告语等。"
-                "适用场景：电商产品详情页、产品手册、宣传册等。"
-            ),
-            func=_generate_product_copywriting,
-            args_schema=ProductCopywritingInput,
+            description="生成产品文案",
+            func=_generate_product_text,
         ),
         StructuredTool(
             name="generate_marketing_copywriting",
-            description=(
-                "生成营销文案。用于创作活动宣传、促销文案、社交媒体内容等。"
-                "适用场景：营销活动推广、社交媒体运营、广告投放等。"
-            ),
-            func=_generate_marketing_copywriting,
-            args_schema=MarketingCopywritingInput,
+            description="生成营销文案",
+            func=_generate_marketing_text,
         ),
         StructuredTool(
             name="generate_creative_copywriting",
-            description=(
-                "生成创意文案。用于创作故事、诗歌、剧本、slogan等各类创意内容。"
-                "适用场景：品牌故事、创意广告、内容营销等。"
-            ),
-            func=_generate_creative_copywriting,
-            args_schema=CreativeCopywritingInput,
+            description="生成创意文案",
+            func=_generate_creative_text,
         ),
     ]
 
     return tools
 
 
-__all__ = ["load_copywriting_tools"]
+__all__ = ["load_text_tools"]

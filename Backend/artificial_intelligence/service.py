@@ -5,14 +5,13 @@ import time
 from typing import Any, Dict
 
 from Backend.artificial_intelligence.agent.conversation import default_session_id
-from Backend.artificial_intelligence.agent.helpers import (
-    process_chat_request,
-    fallback_completion,
-)
+from Backend.artificial_intelligence.agent.interface import process_chat_request
+from Backend.artificial_intelligence.agent.agent_core import fallback_completion
 from Backend.artificial_intelligence.agent.adapters import (
     extract_image_payload,
     extract_text,
 )
+
 from Backend.artificial_intelligence.config.ai_config import get_ai_config
 from Backend.artificial_intelligence.storage import get_media_store
 from Backend.artificial_intelligence.tools.session import (
@@ -42,8 +41,6 @@ def handle_integrated_entrance(payload: Any) -> str:
         ]
     }
 
-    2. 简单文本消息:
-    "用户的文本消息"
     """
     try:
         # 调用 agent 处理请求
@@ -119,11 +116,11 @@ def handle_image_generation(payload: Any) -> str:
 
         # 获取配置并加载工具
         cfg = get_ai_config()
-        from Backend.artificial_intelligence.tools.media.image_tools import (
-            load_image_tools,
+        from Backend.artificial_intelligence.tools.text import (
+            load_text_tools,
         )
 
-        tools = load_image_tools(cfg)
+        tools = load_text_tools(cfg)
         if not tools:
             raise RuntimeError("图像生成功能未启用或配置不完整")
 
@@ -297,7 +294,8 @@ def handle_text_generation(payload: Any) -> str:
         "content_type": "故事|诗歌|剧本等",
         "theme": "创作主题",
         "keywords": "关键词1,关键词2",         // 可选
-        "style": "现代"                        // 可选：现代、古典、浪漫、科技、悬疑等
+        "style": "现代",                       // 可选：现代、古典、浪漫、科技、悬疑等
+        "length": "中等"                       // 可选：简短、中等、长篇
     }
     """
     try:
@@ -311,11 +309,11 @@ def handle_text_generation(payload: Any) -> str:
 
         # 获取配置并加载工具
         cfg = get_ai_config()
-        from Backend.artificial_intelligence.tools.copywriting import (
-            load_copywriting_tools,
+        from Backend.artificial_intelligence.tools.text import (
+            load_text_tools,
         )
 
-        tools = load_copywriting_tools(cfg)
+        tools = load_text_tools(cfg)
         if not tools:
             raise RuntimeError("文案生成功能未启用或配置不完整")
 
@@ -337,30 +335,39 @@ def handle_text_generation(payload: Any) -> str:
             raise RuntimeError(f"未找到文案生成工具: {tool_name}")
 
         # 准备工具调用参数
-        tool_params = {}
+        # 从 content 中提取文本作为 instruction
+        instruction = ""
+        if "content" in request_data and isinstance(request_data["content"], list):
+            for item in request_data["content"]:
+                if item.get("type") == "text":
+                    instruction += item.get("text", "") + "\n"
+
+        # 如果没有 content，尝试从 message 获取（兼容旧格式）
+        if not instruction and "message" in request_data:
+            instruction = request_data["message"]
+
+        # 从 metadata 中提取控制参数
+        metadata = request_data.get("metadata", {})
+
+        tool_params = {"instruction": instruction.strip()}
+
         if copywriting_type == "product":
-            tool_params = {
-                "product_name": request_data.get("product_name", ""),
-                "product_features": request_data.get("product_features", ""),
-                "style": request_data.get("style", "专业"),
-                "length": request_data.get("length", "中等"),
-            }
+            if "style" in metadata:
+                tool_params["style"] = metadata["style"]
+            if "length" in metadata:
+                tool_params["length"] = metadata["length"]
+
         elif copywriting_type == "marketing":
-            tool_params = {
-                "theme": request_data.get("theme", ""),
-                "target_audience": request_data.get("target_audience", ""),
-                "key_points": request_data.get("key_points", ""),
-                "platform": request_data.get("platform", "通用"),
-                "tone": request_data.get("tone", "激励"),
-            }
+            if "platform" in metadata:
+                tool_params["platform"] = metadata["platform"]
+            if "tone" in metadata:
+                tool_params["tone"] = metadata["tone"]
+
         elif copywriting_type == "creative":
-            tool_params = {
-                "content_type": request_data.get("content_type", ""),
-                "theme": request_data.get("theme", ""),
-                "keywords": request_data.get("keywords"),
-                "style": request_data.get("style", "现代"),
-                "length": request_data.get("length", "中等"),
-            }
+            if "style" in metadata:
+                tool_params["style"] = metadata["style"]
+            if "length" in metadata:
+                tool_params["length"] = metadata["length"]
 
         # 调用工具生成文案
         token = set_current_session(session_id)
@@ -420,7 +427,7 @@ def handle_speech_generation(payload: Any) -> str:
 
         # 获取配置并加载工具
         cfg = get_ai_config()
-        from Backend.artificial_intelligence.tools.media.tts_tools import (
+        from Backend.artificial_intelligence.tools.media.speech_tools import (
             load_tts_tools,
         )
 

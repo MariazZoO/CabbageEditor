@@ -21,7 +21,7 @@ from Backend.artificial_intelligence.service import (
 )
 
 
-def test_copywriting_service():
+def test_text_service():
     """测试文案生成服务"""
     print("\n" + "=" * 60)
     print("测试 1: 文案生成服务")
@@ -51,7 +51,7 @@ def test_copywriting_service():
         print(f"测试失败: {e}")
 
 
-def test_tts_service():
+def test_speech_service():
     """测试TTS服务"""
     print("\n" + "=" * 60)
     print("测试 2: TTS语音合成服务")
@@ -185,15 +185,15 @@ if __name__ == "__main__":
     print("=" * 60)
 
     # 测试顺序：从简单到复杂
-    # test_copywriting_service()
-    # test_tts_service()
-    # test_music_service()
+    test_text_service()
+    test_speech_service()
+    test_music_service()
 
     # 图像生成，并获取URL用于视频测试
     image_url = test_image_service()
 
     # 使用生成的图像URL进行视频测试
-    # test_video_service(image_url)
+    test_video_service(image_url)
 
     print("\n" + "=" * 60)
     print("✓ 所有测试完成")

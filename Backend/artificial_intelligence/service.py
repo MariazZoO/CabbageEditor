@@ -19,7 +19,6 @@ from Backend.artificial_intelligence.agent.adapters import (
     log_ai_messages,
 )
 from Backend.artificial_intelligence.config.ai_config import get_ai_config
-from config.app_config import get_app_config
 from Backend.artificial_intelligence.models import get_chat_model
 from Backend.artificial_intelligence.storage import get_media_store
 from Backend.artificial_intelligence.tools.session import (
@@ -167,7 +166,7 @@ def handle_image_generation(payload: Any) -> str:
         scene_url = request_data.get("scene_url")
 
         # 获取配置并加载工具
-        cfg = get_app_config()
+        cfg = get_ai_config()
         from Backend.artificial_intelligence.tools.media.image_tools import (
             load_image_tools,
         )
@@ -251,7 +250,7 @@ def handle_video_generation(payload: Any) -> str:
         prompt_extend = request_data.get("prompt_extend", True)
 
         # 获取配置并加载工具
-        cfg = get_app_config()
+        cfg = get_ai_config()
         from Backend.artificial_intelligence.tools.media.video_tools import (
             load_video_tools,
         )
@@ -448,7 +447,7 @@ def handle_text_generation(payload: Any) -> str:
         session_id = request_data.get("session_id", default_session_id())
 
         # 获取配置并加载工具
-        cfg = get_app_config()
+        cfg = get_ai_config()
         from Backend.artificial_intelligence.tools.copywriting import (
             load_copywriting_tools,
         )
@@ -557,7 +556,7 @@ def handle_speech_generation(payload: Any) -> str:
         session_id = request_data.get("session_id", default_session_id())
 
         # 获取配置并加载工具
-        cfg = get_app_config()
+        cfg = get_ai_config()
         from Backend.artificial_intelligence.tools.media.tts_tools import (
             load_tts_tools,
         )
@@ -647,7 +646,7 @@ def handle_music_generation(payload: Any) -> str:
         session_id = request_data.get("session_id", default_session_id())
 
         # 获取配置并加载工具
-        cfg = get_app_config()
+        cfg = get_ai_config()
         from Backend.artificial_intelligence.tools.media.music_tools import (
             load_music_tools,
         )

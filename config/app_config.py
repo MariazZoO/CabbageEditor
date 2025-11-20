@@ -28,6 +28,7 @@ DEFAULT_CONFIG = {
         "enable_gpu": False,
         "log_level": "INFO",
         "debug_mode": False,
+        "InnerAgentWorkFlow": False,
     }
 }
 

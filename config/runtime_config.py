@@ -10,4 +10,5 @@ class RuntimeConfig:
     enable_gpu: bool = False
     log_level: str = "INFO"
     debug_mode: bool = False
+    InnerAgentWorkFlow: bool = False
 

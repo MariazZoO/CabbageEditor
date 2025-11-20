@@ -32,7 +32,7 @@ def test_product_text():
 
     # 查找产品文案工具
     product_tool = next(
-        (t for t in tools if t.name == "generate_product_copywriting"), None
+        (t for t in tools if t.name == "generate_product_text"), None
     )
     if not product_tool:
         print("❌ 未找到产品文案生成工具")
@@ -55,7 +55,7 @@ def test_product_text():
         print(f"\n❌ 生成失败: {e}")
 
 
-def test_marketing_copywriting():
+def test_marketing_text():
     """测试营销文案生成"""
     print("\n" + "=" * 50)
     print("测试2: 营销文案生成")
@@ -70,7 +70,7 @@ def test_marketing_copywriting():
 
     # 查找营销文案工具
     marketing_tool = next(
-        (t for t in tools if t.name == "generate_marketing_copywriting"), None
+        (t for t in tools if t.name == "generate_marketing_text"), None
     )
     if not marketing_tool:
         print("❌ 未找到营销文案生成工具")
@@ -94,7 +94,7 @@ def test_marketing_copywriting():
         print(f"\n❌ 生成失败: {e}")
 
 
-def test_creative_copywriting():
+def test_creative_text():
     """测试创意文案生成"""
     print("\n" + "=" * 50)
     print("测试3: 创意文案生成")
@@ -109,7 +109,7 @@ def test_creative_copywriting():
 
     # 查找创意文案工具
     creative_tool = next(
-        (t for t in tools if t.name == "generate_creative_copywriting"), None
+        (t for t in tools if t.name == "generate_creative_text"), None
     )
     if not creative_tool:
         print("❌ 未找到创意文案生成工具")
@@ -143,8 +143,8 @@ def main():
 
     # 运行测试
     test_product_text()
-    test_marketing_copywriting()
-    test_creative_copywriting()
+    test_marketing_text()
+    test_creative_text()
 
     print("\n" + "=" * 60)
     print(" 测试完成")

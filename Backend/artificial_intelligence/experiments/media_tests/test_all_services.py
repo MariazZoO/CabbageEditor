@@ -43,7 +43,7 @@ def test_text_service():
 
         print(f"状态: {data.get('status')}")
         if data.get("status") == "success":
-            print(f"文案类型: {data.get('copywriting_type')}")
+            print(f"文案类型: {data.get('text_type')}")
             print(f"生成内容:\n{data.get('content')}")
         else:
             print(f"错误: {data.get('content')}")

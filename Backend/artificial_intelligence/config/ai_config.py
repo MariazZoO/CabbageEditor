@@ -5,20 +5,12 @@ AI 专属配置
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Dict, Mapping, Optional
+import copy
 import os
-import tomllib
-import configparser
+from dataclasses import dataclass, field
+from typing import Any, Dict, Mapping, Optional
 
-AI_CONFIG_DIR = Path(__file__).parent
-AI_SETTINGS_FILE_INI = AI_CONFIG_DIR / "ai_settings.ini"
-AI_SETTINGS_FILE_TOML = AI_CONFIG_DIR / "ai_settings.toml"
-AI_SETTINGS_EXAMPLE_FILE = AI_CONFIG_DIR / "ai_settings.example.toml"
-USER_AI_CONFIG_FILE = Path.home() / ".coronaengine" / "ai_settings.toml"
-
-DEFAULT_SYSTEM_PROMPT = "你是 CabbageEditor 的内置助手。请在回答前检查可用工具，必要时调用 MCP、图像或视频工具；其余情况直接用中文简洁回答。"
+from .ai_settings import AI_SETTINGS, DEFAULT_SYSTEM_PROMPT
 
 _AI_CACHE: Optional["AIConfig"] = None
 
@@ -105,105 +97,8 @@ class AIConfig:
 
 
 # ---------------------------------------------------------------------------
-# 文件加载辅助函数
+# 配置加载辅助函数
 # ---------------------------------------------------------------------------
-
-
-def _load_toml(path: Path) -> Dict[str, Any]:
-    """加载 TOML 文件"""
-    if not path.exists():
-        return {}
-    try:
-        return tomllib.loads(path.read_text(encoding="utf-8"))
-    except Exception as e:
-        print(f"加载 AI TOML 配置失败 {path}: {e}")
-        return {}
-
-
-def _load_ini(path: Path) -> Dict[str, Any]:
-    """加载 INI 文件并转换为嵌套字典"""
-    if not path.exists():
-        return {}
-    try:
-        config = configparser.ConfigParser()
-        config.read(path, encoding="utf-8")
-
-        result = {}
-
-        # 解析 provider_ 开头的 section
-        providers = []
-        for section in config.sections():
-            if section.startswith("provider_"):
-                provider_data = dict(config[section])
-                if "name" not in provider_data:
-                    provider_data["name"] = section.replace("provider_", "")
-                providers.append(provider_data)
-
-        if providers:
-            result["providers"] = providers
-
-        # 解析 llm_chat section
-        if "llm_chat" in config:
-            result.setdefault("llm", {})["chat"] = {}
-            chat = result["llm"]["chat"]
-            if "provider" in config["llm_chat"]:
-                chat["provider"] = config["llm_chat"]["provider"]
-            if "model" in config["llm_chat"]:
-                chat["model"] = config["llm_chat"]["model"]
-            if "temperature" in config["llm_chat"]:
-                chat["temperature"] = config["llm_chat"].getfloat("temperature")
-            if "request_timeout" in config["llm_chat"]:
-                chat["request_timeout"] = config["llm_chat"].getfloat("request_timeout")
-            if "system_prompt" in config["llm_chat"]:
-                chat["system_prompt"] = config["llm_chat"]["system_prompt"]
-
-        # 解析 llm_tool_models_mcp section
-        if "llm_tool_models_mcp" in config:
-            result.setdefault("llm", {}).setdefault("tool_models", {})["mcp"] = dict(
-                config["llm_tool_models_mcp"]
-            )
-
-        # 解析 media_image section
-        if "media_image" in config:
-            result.setdefault("media", {})["image"] = {}
-            image = result["media"]["image"]
-            if "enable" in config["media_image"]:
-                image["enable"] = config["media_image"].getboolean("enable")
-            if "provider" in config["media_image"]:
-                image["provider"] = config["media_image"]["provider"]
-            if "model" in config["media_image"]:
-                image["model"] = config["media_image"]["model"]
-            if "base_url" in config["media_image"]:
-                image["base_url"] = config["media_image"]["base_url"]
-
-        # 解析 media_video section
-        if "media_video" in config:
-            result.setdefault("media", {})["video"] = {}
-            video = result["media"]["video"]
-            if "enable" in config["media_video"]:
-                video["enable"] = config["media_video"].getboolean("enable")
-            if "provider" in config["media_video"]:
-                video["provider"] = config["media_video"]["provider"]
-            if "model" in config["media_video"]:
-                video["model"] = config["media_video"]["model"]
-            if "base_url" in config["media_video"]:
-                video["base_url"] = config["media_video"]["base_url"]
-
-        return result
-    except Exception as e:
-        print(f"加载 AI INI 配置失败 {path}: {e}")
-        return {}
-
-
-def _deep_merge(base: Dict[str, Any], override: Mapping[str, Any]) -> Dict[str, Any]:
-    """深度合并字典"""
-    result = dict(base)
-    for key, value in override.items():
-        if isinstance(value, Mapping) and isinstance(result.get(key), Mapping):
-            result[key] = _deep_merge(result[key], value)
-        else:
-            result[key] = value
-    return result
 
 
 def _apply_env_overrides(data: Dict[str, Any]) -> None:
@@ -223,27 +118,10 @@ def _apply_env_overrides(data: Dict[str, Any]) -> None:
 
 
 def _load_ai_config_data() -> Dict[str, Any]:
-    """加载 AI 配置数据"""
-    # 优先加载 INI 格式
-    if AI_SETTINGS_FILE_INI.exists():
-        project = _load_ini(AI_SETTINGS_FILE_INI)
-    elif AI_SETTINGS_FILE_TOML.exists():
-        project = _load_toml(AI_SETTINGS_FILE_TOML)
-    elif AI_SETTINGS_EXAMPLE_FILE.exists():
-        project = _load_toml(AI_SETTINGS_EXAMPLE_FILE)
-    else:
-        project = {}
-
-    # 加载用户配置
-    user = _load_toml(USER_AI_CONFIG_FILE)
-
-    # 合并配置
-    merged = _deep_merge(project, user)
-
-    # 应用环境变量覆盖
-    _apply_env_overrides(merged)
-
-    return merged
+    """从 ai_settings 模块加载配置"""
+    data = copy.deepcopy(AI_SETTINGS)
+    _apply_env_overrides(data)
+    return data
 
 
 # ---------------------------------------------------------------------------

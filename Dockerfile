@@ -110,4 +110,4 @@ CMD ["gunicorn", \
      "Backend.network_service.server:app"]
 
 # 或者使用 Python 直接启动（开发/测试）
-CMD ["python", "main_test.py"]
+CMD ["python", "main.py"]

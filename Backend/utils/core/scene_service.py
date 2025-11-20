@@ -4,8 +4,8 @@ import json
 import os
 from typing import Any, Dict, List, Protocol
 
-from ..engine_core.entities.actor import Actor
-from ..engine_core.managers import scene_manager as scene_manager_module
+from Backend.engine_core.entities.actor import Actor
+from Backend.engine_core.managers import scene_manager as scene_manager_module
 from .logging import get_logger
 
 

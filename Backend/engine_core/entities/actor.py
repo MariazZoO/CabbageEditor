@@ -45,14 +45,14 @@ class Actor:
             self._optics = Optics(self._geometry)
             # 可选组件（按需创建）
             self._mechanics = Mechanics(self._geometry)
-            self._kinematics = Kinematics(self._geometry)
+            # self._kinematics = Kinematics(self._geometry)
             self._acoustics = Acoustics(self._geometry)
 
             prof = ActorProfile()
             prof.geometry = self._geometry.engine_obj
             prof.optics = self._optics.engine_obj
             prof.mechanics = self._mechanics.engine_obj if hasattr(self, '_mechanics') else None
-            prof.kinematics = self._kinematics.engine_obj if hasattr(self, '_kinematics') else None
+            # prof.kinematics = self._kinematics.engine_obj if hasattr(self, '_kinematics') else None
             prof.acoustics = self._acoustics.engine_obj if hasattr(self, '_acoustics') else None
 
             stored = self.engine_obj.add_profile(prof)

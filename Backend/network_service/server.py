@@ -20,6 +20,10 @@ try:
     from Backend.artificial_intelligence.service import (
         handle_integrated_entrance,
         handle_image_generation,
+        handle_video_generation,
+        handle_text_generation,
+        handle_speech_generation,
+        handle_music_generation,
     )
 except Exception as e:  # noqa: BLE001
     AI_AVAILABLE = False
@@ -101,7 +105,7 @@ def api_ai_upload_image():
         message = request.form.get("message") or ""
         session_id = request.form.get("session_id") or None
         
-        # 使用统一的 handle_chat 接口格式
+        # 使用统一的 handle_integrated_entrance 接口格式
         payload = {
             "message": message,
             "images": [
@@ -119,6 +123,62 @@ def api_ai_upload_image():
         return Response(result_str, status=200, mimetype="application/json")
     except Exception as e:  # noqa: BLE001
         logging.exception("/api/ai/upload-image 失败: %s", e)
+        return jsonify({"code": 500, "msg": f"服务器错误：{e}"}), 500
+
+
+@app.post("/api/ai/generate-video")
+def api_ai_generate_video():
+    """图生视频 API"""
+    if not AI_AVAILABLE:
+        return jsonify({"code": 503, "msg": "AI 服务未加载，无法生成视频"}), 503
+    try:
+        payload = request.get_json(silent=True) or {}
+        result_str = handle_video_generation(payload)
+        return Response(result_str, status=200, mimetype="application/json")
+    except Exception as e:  # noqa: BLE001
+        logging.exception("/api/ai/generate-video 失败: %s", e)
+        return jsonify({"code": 500, "msg": f"服务器错误：{e}"}), 500
+
+
+@app.post("/api/ai/generate-text")
+def api_ai_generate_text():
+    """文案生成 API（产品/营销/创意文案）"""
+    if not AI_AVAILABLE:
+        return jsonify({"code": 503, "msg": "AI 服务未加载，无法生成文案"}), 503
+    try:
+        payload = request.get_json(silent=True) or {}
+        result_str = handle_text_generation(payload)
+        return Response(result_str, status=200, mimetype="application/json")
+    except Exception as e:  # noqa: BLE001
+        logging.exception("/api/ai/generate-text 失败: %s", e)
+        return jsonify({"code": 500, "msg": f"服务器错误：{e}"}), 500
+
+
+@app.post("/api/ai/generate-speech")
+def api_ai_generate_speech():
+    """TTS 语音合成 API"""
+    if not AI_AVAILABLE:
+        return jsonify({"code": 503, "msg": "AI 服务未加载，无法生成语音"}), 503
+    try:
+        payload = request.get_json(silent=True) or {}
+        result_str = handle_speech_generation(payload)
+        return Response(result_str, status=200, mimetype="application/json")
+    except Exception as e:  # noqa: BLE001
+        logging.exception("/api/ai/generate-speech 失败: %s", e)
+        return jsonify({"code": 500, "msg": f"服务器错误：{e}"}), 500
+
+
+@app.post("/api/ai/generate-music")
+def api_ai_generate_music():
+    """BGM 音乐生成 API"""
+    if not AI_AVAILABLE:
+        return jsonify({"code": 503, "msg": "AI 服务未加载，无法生成音乐"}), 503
+    try:
+        payload = request.get_json(silent=True) or {}
+        result_str = handle_music_generation(payload)
+        return Response(result_str, status=200, mimetype="application/json")
+    except Exception as e:  # noqa: BLE001
+        logging.exception("/api/ai/generate-music 失败: %s", e)
         return jsonify({"code": 500, "msg": f"服务器错误：{e}"}), 500
 
 

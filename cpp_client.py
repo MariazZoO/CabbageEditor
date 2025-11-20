@@ -54,8 +54,8 @@ def initialize():
     try:
         # 1. 创建 Qt 应用
         from Backend.window_layout import main_window
-        from Backend.utils.cleanup import cleanup_blockly_files
-        from Backend.utils.script_runner import ScriptRunner
+        from Backend.utils.core.cleanup import cleanup_blockly_files
+        from Backend.utils.gui.script_runner import ScriptRunner
 
         _client_app, window = main_window.init_app()
         _script_runner = ScriptRunner(_client_app)
@@ -105,7 +105,7 @@ def run(is_reload: bool = False):
     try:
         # 1. 热重载逻辑
         if is_reload:
-            from Backend.utils.hot_reload import clear_script_modules
+            from Backend.utils.core.hot_reload import clear_script_modules
             clear_script_modules()
 
         # 2. 执行脚本

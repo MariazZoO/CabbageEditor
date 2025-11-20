@@ -9,7 +9,7 @@ from Backend.artificial_intelligence.service import handle_integrated_entrance
 from Backend.artificial_intelligence.config.ai_config import get_ai_config
 
 from Backend.artificial_intelligence.models import get_chat_model
-from Backend.utils.logging import get_logger
+from Backend.utils import get_logger
 
 logger = get_logger(__name__)
 

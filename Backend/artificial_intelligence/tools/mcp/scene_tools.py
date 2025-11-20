@@ -7,7 +7,7 @@ from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
-    from Backend.utils.scene_service import SceneApplicationService
+    from Backend.utils import SceneApplicationService
 
 
 class SceneQueryInput(BaseModel):

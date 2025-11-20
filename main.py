@@ -26,7 +26,7 @@ sys.path.append(str(app_config.paths.repo_root))
 
 # 4. 初始化日志（尽早进行）
 try:
-    from Backend.utils.logging import configure_logging
+    from Backend.utils import configure_logging
     configure_logging()
 except Exception:
     pass
@@ -87,8 +87,8 @@ def main():
 
         # 启动 Qt 应用
         from Backend.window_layout import main_window
-        from Backend.utils.cleanup import cleanup_blockly_files
-        from Backend.utils.script_runner import ScriptRunner
+        from Backend.utils.core.cleanup import cleanup_blockly_files
+        from Backend.utils.gui.script_runner import ScriptRunner
         app, window = main_window.init_app()
         script_runner = ScriptRunner(app)
 

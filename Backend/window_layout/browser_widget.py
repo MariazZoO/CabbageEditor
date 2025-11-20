@@ -3,7 +3,7 @@ import json
 from PySide6.QtCore import Qt, QUrl, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from Backend.utils import CentralManager
+from Backend.utils.gui.central_manager import CentralManager
 from Backend.frontend_bridge import setup_webchannel_for_view, teardown_webchannel_for_view
 
 

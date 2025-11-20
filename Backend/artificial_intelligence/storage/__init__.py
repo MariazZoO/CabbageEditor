@@ -4,13 +4,9 @@
 提供图片和视频的统一存储管理
 """
 
-from .media_storage import (
-    MediaStore,
-    StoredImage,
-    StoredVideo,
-    get_media_store,
-    AUTOSAVE_URL_SCHEME,
-)
+from .manager import MediaStore
+from .models import StoredImage, StoredVideo
+from .utils import AUTOSAVE_URL_SCHEME, get_media_store
 
 __all__ = [
     "MediaStore",

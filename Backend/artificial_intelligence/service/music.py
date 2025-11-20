@@ -7,10 +7,9 @@ from Backend.artificial_intelligence.config.ai_config import get_ai_config
 
 from Backend.artificial_intelligence.service.common import (
     ensure_dict,
-    extract_latest_user_content,
-    extract_parameter,
     make_error,
     make_response,
+    require_fields,
     session_context,
 )
 
@@ -21,22 +20,10 @@ def handle_music_generation(payload: Any) -> str:
     """
     request_data: Dict[str, Any] = ensure_dict(payload)
     try:
+        require_fields(request_data, ["prompt"])
+
         session_id = request_data.get("session_id")
-
-        # 提取 prompt
-        prompt = ""
-        user_content = extract_latest_user_content(request_data)
-        if user_content:
-            for part in user_content.get("part", []):
-                if part.get("content_type") == "text":
-                    prompt = part.get("content_text", "")
-                    break
-
-        if not prompt:
-            prompt = extract_parameter(request_data, "prompt")
-
-        if not prompt:
-            raise ValueError("缺少必需参数: prompt")
+        prompt = request_data.get("prompt")
 
         cfg = get_ai_config()
         from Backend.artificial_intelligence.tools.media.music_tools import (
@@ -51,14 +38,12 @@ def handle_music_generation(payload: Any) -> str:
 
         tool_params = {
             "prompt": prompt,
-            "style": extract_parameter(request_data, "style", ""),
-            "model": extract_parameter(request_data, "model", "V5"),
-            "duration": extract_parameter(request_data, "duration", 20),
-            "wait": extract_parameter(request_data, "wait", False),
-            "max_wait_seconds": extract_parameter(
-                request_data, "max_wait_seconds", 600
-            ),
-            "poll_interval": extract_parameter(request_data, "poll_interval", 5.0),
+            "style": request_data.get("style", ""),
+            "model": request_data.get("model", "V5"),
+            "duration": request_data.get("duration", 20),
+            "wait": request_data.get("wait", False),
+            "max_wait_seconds": request_data.get("max_wait_seconds", 600),
+            "poll_interval": request_data.get("poll_interval", 5.0),
         }
 
         with session_context(session_id) as sid:
@@ -66,40 +51,22 @@ def handle_music_generation(payload: Any) -> str:
 
         tool_result = json.loads(result_json)
 
-        parts = []
-        audio_list = tool_result.get("audio_list", [])
-        for audio_url in audio_list:
-            # 仅保留 API 文档定义的参数
-            music_params = {}
-            if tool_result.get("duration"):
-                music_params["duration"] = tool_result.get("duration")
-            if tool_result.get("style"):
-                music_params["music_style"] = tool_result.get("style")
-
-            parts.append(
-                {
-                    "content_type": "audio",
-                    "content_url": audio_url,
-                    "parameter": music_params,
-                }
-            )
-
-        # 如果没有 audio_list 但有 error，可能已经在 exception 捕获前抛出，或者在这里处理
-        if not parts and tool_result.get("status") == "error":
-            raise RuntimeError(tool_result.get("error", "Unknown error"))
-
-        metadata = request_data.get("metadata", {})
-
         return make_response(
-            interface_type="music",
+            response_type="music_generation",
+            status=tool_result.get("status", "success"),
             session_id=sid,
-            parts=parts,
-            metadata=metadata,
+            task_id=tool_result.get("task_id"),
+            model=tool_result.get("model"),
+            prompt=tool_result.get("prompt"),
+            style=tool_result.get("style"),
+            audio_list=tool_result.get("audio_list", []),
+            audio_count=tool_result.get("audio_count", 0),
+            error=tool_result.get("error"),
         )
 
     except Exception as exc:  # noqa: BLE001
         return make_error(
-            "music",
+            "music_generation",
             request_data.get("session_id"),
             exc,
         )

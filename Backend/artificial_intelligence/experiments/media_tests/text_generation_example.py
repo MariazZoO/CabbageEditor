@@ -23,6 +23,21 @@ def test_product_text():
     print("测试1: 产品文案生成")
     print("=" * 50)
 
+    config = get_ai_config()
+    tools = load_text_tools(config)
+
+    if not tools:
+        print("❌ 文案生成工具加载失败，请检查豆包provider配置")
+        return
+
+    # 查找产品文案工具
+    product_tool = next(
+        (t for t in tools if t.name == "generate_product_text"), None
+    )
+    if not product_tool:
+        print("❌ 未找到产品文案生成工具")
+        return
+
     print("\n正在生成产品文案...")
     payload = {
         "session_id": "test_session",
@@ -64,12 +79,25 @@ def test_product_text():
 
 
 def test_marketing_text():
-    from Backend.artificial_intelligence.service import handle_text_generation
-
     """测试营销文案生成"""
     print("\n" + "=" * 50)
     print("测试2: 营销文案生成")
     print("=" * 50)
+
+    config = get_ai_config()
+    tools = load_text_tools(config)
+
+    if not tools:
+        print("❌ 文案生成工具加载失败")
+        return
+
+    # 查找营销文案工具
+    marketing_tool = next(
+        (t for t in tools if t.name == "generate_marketing_text"), None
+    )
+    if not marketing_tool:
+        print("❌ 未找到营销文案生成工具")
+        return
 
     print("\n正在生成营销文案...")
     payload = {
@@ -112,12 +140,25 @@ def test_marketing_text():
 
 
 def test_creative_text():
-    from Backend.artificial_intelligence.service import handle_text_generation
-
     """测试创意文案生成"""
     print("\n" + "=" * 50)
     print("测试3: 创意文案生成")
     print("=" * 50)
+
+    config = get_ai_config()
+    tools = load_text_tools(config)
+
+    if not tools:
+        print("❌ 文案生成工具加载失败")
+        return
+
+    # 查找创意文案工具
+    creative_tool = next(
+        (t for t in tools if t.name == "generate_creative_text"), None
+    )
+    if not creative_tool:
+        print("❌ 未找到创意文案生成工具")
+        return
 
     print("\n正在生成创意文案...")
     payload = {

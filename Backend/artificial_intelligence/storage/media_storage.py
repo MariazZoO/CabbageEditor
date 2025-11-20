@@ -53,7 +53,7 @@ class StoredImage:
     @property
     def cache_key(self) -> str:
         """获取缓存键（用于缓存 data_url）"""
-        return f"{self.session_id}/{self.kind}/{self.category}/{self.name}"
+        return self.name
 
 
 @dataclass(frozen=True)
@@ -97,6 +97,7 @@ class MediaStore:
         # 图片存储索引
         self._uploads: dict[str, dict[str, StoredImage]] = {}
         self._generated_images: dict[str, list[StoredImage]] = {}
+        self._image_index: dict[str, StoredImage] = {}
 
         # 视频存储索引
         self._videos: dict[str, list[StoredVideo]] = {}
@@ -129,8 +130,8 @@ class MediaStore:
         - StoredImage: 存储的图片元数据
         """
         mime, payload = _split_base64(data)
-        filename = _build_filename(original_name, category, mime)
-        path = self._write_file(session_id, "uploads", category, filename, payload)
+        filename = _build_filename("upload", mime)
+        path = self._write_file(filename, payload)
 
         stored = StoredImage(
             session_id=session_id,
@@ -144,6 +145,7 @@ class MediaStore:
 
         with self._lock:
             self._uploads.setdefault(session_id, {})[category] = stored
+            self._image_index[filename] = stored
 
         return stored
 
@@ -153,7 +155,7 @@ class MediaStore:
         session_id: str,
         data_base64: str,
         mime_type: str = "image/png",
-        prefix: str = "generated",
+        prefix: str = "generate",
     ) -> StoredImage:
         """
         保存生成的图片
@@ -168,8 +170,8 @@ class MediaStore:
         - StoredImage: 存储的图片元数据
         """
         _, payload = _split_base64(data_base64, assume_mime=mime_type)
-        filename = _build_filename(f"{prefix}-{uuid.uuid4().hex}", prefix, mime_type)
-        path = self._write_file(session_id, "generated", prefix, filename, payload)
+        filename = _build_filename(prefix, mime_type)
+        path = self._write_file(filename, payload)
 
         stored = StoredImage(
             session_id=session_id,
@@ -183,6 +185,7 @@ class MediaStore:
 
         with self._lock:
             self._generated_images.setdefault(session_id, []).append(stored)
+            self._image_index[filename] = stored
 
         return stored
 
@@ -327,12 +330,9 @@ class MediaStore:
         """
         构建图片的 autosave:// URL
 
-        格式: autosave://{session_id}/{kind}/{category}/{filename}
+        格式: autosave://{filename}
         """
-        return (
-            f"{AUTOSAVE_URL_SCHEME}"
-            f"{stored.session_id}/{stored.kind}/{stored.category}/{stored.name}"
-        )
+        return f"{AUTOSAVE_URL_SCHEME}{stored.name}"
 
     def build_video_url(self, stored: StoredVideo) -> str:
         """
@@ -359,33 +359,28 @@ class MediaStore:
             return None
 
         relative = url[len(AUTOSAVE_URL_SCHEME):]
+        if not relative:
+            return None
+
         parts = relative.split("/")
 
-        if len(parts) < 4:
-            return None
+        # 新格式：autosave://{filename}
+        if len(parts) == 1:
+            filename = parts[0]
+            with self._lock:
+                cached = self._image_index.get(filename)
+            if cached:
+                return cached
 
-        session_id, kind, category = parts[0], parts[1], parts[2]
-        filename = "/".join(parts[3:])
-        path = self.root / session_id / kind / category / filename
+            path = self.root / filename
+            if not path.exists():
+                return None
 
-        if not path.exists():
-            return None
-
-        mime = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
-
-        # 判断是视频还是图片
-        if category == "video" and kind == "generated":
-            return StoredVideo(
-                session_id=session_id,
-                name=filename,
-                mime_type=mime,
-                path=path,
-                created_at=path.stat().st_mtime,
-                kind=kind,
-            )
-        else:
+            mime = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
+            kind = "generated" if "_generate" in filename else "uploads"
+            category = "generated" if kind == "generated" else "upload"
             return StoredImage(
-                session_id=session_id,
+                session_id="",
                 category=category,
                 name=filename,
                 mime_type=mime,
@@ -394,22 +389,51 @@ class MediaStore:
                 kind=kind,
             )
 
+        # 兼容旧格式：autosave://{session}/{kind}/{category}/{filename}
+        if len(parts) >= 4:
+            session_id, kind, category = parts[0], parts[1], parts[2]
+            filename = "/".join(parts[3:])
+            path = self.root / session_id / kind / category / filename
+
+            if not path.exists():
+                return None
+
+            mime = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
+
+            if category == "video" and kind == "generated":
+                return StoredVideo(
+                    session_id=session_id,
+                    name=filename,
+                    mime_type=mime,
+                    path=path,
+                    created_at=path.stat().st_mtime,
+                    kind=kind,
+                )
+            else:
+                return StoredImage(
+                    session_id=session_id,
+                    category=category,
+                    name=filename,
+                    mime_type=mime,
+                    path=path,
+                    created_at=path.stat().st_mtime,
+                    kind=kind,
+                )
+
+        return None
+
     # ========================================================================
     # 内部辅助方法
     # ========================================================================
 
     def _write_file(
         self,
-        session_id: str,
-        section: str,
-        category: str,
         filename: str,
         payload_base64: str,
     ) -> Path:
         """写入文件到磁盘"""
-        session_dir = self.root / session_id / section / category
-        session_dir.mkdir(parents=True, exist_ok=True)
-        path = session_dir / filename
+        self.root.mkdir(parents=True, exist_ok=True)
+        path = self.root / filename
         path.write_bytes(base64.b64decode(payload_base64))
         return path
 
@@ -604,13 +628,13 @@ def _split_base64(data: str, *, assume_mime: Optional[str] = None) -> tuple[str,
     return assume_mime, stripped
 
 
-def _build_filename(original: str, category: str, mime: str) -> str:
-    """构建安全的文件名"""
-    stem = Path(original).stem or category
+def _build_filename(tag: str, mime: str) -> str:
+    """构建以时间开头的文件名，避免路径过深，示例：20250119_134500_generate_xxxxxx.png"""
+    timestamp = time.strftime("%Y%m%d_%H%M%S", time.localtime())
     ext = _mime_to_extension(mime)
-    token = uuid.uuid4().hex[:8]
-    safe_stem = re.sub(r"[^a-zA-Z0-9_-]", "_", stem)
-    return f"{safe_stem}_{token}{ext}"
+    token = uuid.uuid4().hex[:6]
+    safe_tag = re.sub(r"[^a-zA-Z0-9_-]", "_", tag)
+    return f"{timestamp}_{safe_tag}_{token}{ext}"
 
 
 def _mime_to_extension(mime: str) -> str:

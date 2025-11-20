@@ -206,17 +206,17 @@ def load_text_tools(config: AIConfig) -> List[StructuredTool]:
     # 创建三个结构化工具，带有明确的参数模式
     tools = [
         StructuredTool(
-            name="generate_product_copywriting",
+            name="generate_product_text",
             description="生成产品文案",
             func=_generate_product_text,
         ),
         StructuredTool(
-            name="generate_marketing_copywriting",
+            name="generate_marketing_text",
             description="生成营销文案",
             func=_generate_marketing_text,
         ),
         StructuredTool(
-            name="generate_creative_copywriting",
+            name="generate_creative_text",
             description="生成创意文案",
             func=_generate_creative_text,
         ),

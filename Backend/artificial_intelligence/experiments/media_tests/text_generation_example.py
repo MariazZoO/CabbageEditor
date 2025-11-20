@@ -14,17 +14,17 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(REPO_ROOT))
 
 from Backend.artificial_intelligence.config.ai_config import get_ai_config
-from Backend.artificial_intelligence.tools.copywriting import load_copywriting_tools
+from Backend.artificial_intelligence.tools.text import load_text_tools
 
 
-def test_product_copywriting():
+def test_product_text():
     """测试产品文案生成"""
     print("\n" + "=" * 50)
     print("测试1: 产品文案生成")
     print("=" * 50)
 
     config = get_ai_config()
-    tools = load_copywriting_tools(config)
+    tools = load_text_tools(config)
 
     if not tools:
         print("❌ 文案生成工具加载失败，请检查豆包provider配置")
@@ -62,7 +62,7 @@ def test_marketing_copywriting():
     print("=" * 50)
 
     config = get_ai_config()
-    tools = load_copywriting_tools(config)
+    tools = load_text_tools(config)
 
     if not tools:
         print("❌ 文案生成工具加载失败")
@@ -101,7 +101,7 @@ def test_creative_copywriting():
     print("=" * 50)
 
     config = get_ai_config()
-    tools = load_copywriting_tools(config)
+    tools = load_text_tools(config)
 
     if not tools:
         print("❌ 文案生成工具加载失败")
@@ -142,7 +142,7 @@ def main():
     print("\n注意：请确保已在 app_config.toml 中配置了豆包API密钥")
 
     # 运行测试
-    test_product_copywriting()
+    test_product_text()
     test_marketing_copywriting()
     test_creative_copywriting()
 

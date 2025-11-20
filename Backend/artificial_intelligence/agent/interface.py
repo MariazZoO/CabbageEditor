@@ -1,14 +1,14 @@
 """
-Agent 辅助函数
-包含消息转换、agent 执行和备用完成等核心功能
+Agent 统一接口
+对外暴露的唯一入口，负责协议转换和异常处理
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict
 
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, BaseMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
-from Backend.artificial_intelligence.agent.executor import run_agent
+from Backend.artificial_intelligence.agent.agent_core import run_agent
 from Backend.artificial_intelligence.agent.conversation import (
     default_session_id,
     get_history,
@@ -18,10 +18,8 @@ from Backend.artificial_intelligence.agent.adapters import (
     build_user_message,
     coerce_messages,
     log_ai_messages,
+    normalize_request,
 )
-from Backend.artificial_intelligence.agent.requests import normalize_request
-from Backend.artificial_intelligence.config.ai_config import get_ai_config
-from Backend.artificial_intelligence.models import get_chat_model
 from Backend.artificial_intelligence.tools.session import (
     reset_current_session,
     set_current_session,
@@ -83,35 +81,6 @@ def process_chat_request(payload: Any) -> Dict[str, Any]:
     }
 
 
-def fallback_completion(history: List[BaseMessage]) -> str:
-    """
-    备用完成方法：直接使用 LLM 而不经过 agent
-    接受标准的 LangChain BaseMessage 列表，返回文本内容
-    """
-    cfg = get_ai_config()
-    chat_cfg = cfg.chat
-    llm = get_chat_model(
-        cfg,
-        provider_name=chat_cfg.provider,
-        model_name=chat_cfg.model,
-        temperature=chat_cfg.temperature,
-        request_timeout=chat_cfg.request_timeout,
-    )
-    # 添加系统提示
-    prompt_messages: List[BaseMessage] = [
-        SystemMessage(content=chat_cfg.system_prompt),
-        *history,
-    ]
-    ai_message = llm.invoke(prompt_messages)
-    content = ai_message.content or ""
-    # content为数组时提取text
-    if isinstance(content, list):
-        content = "\n".join([b["text"] for b in content if b.get("type") == "text"])
-    print(f"[AIMessage] {content}")
-    return content
-
-
 __all__ = [
     "process_chat_request",
-    "fallback_completion",
 ]

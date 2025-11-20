@@ -328,7 +328,7 @@ class TTSClient:
             f.write(audio_data)
 
 
-def create_tts_client(appid: str, access_token: str) -> TTSClient:
+def create_speech_client(appid: str, access_token: str) -> TTSClient:
     """
     创建 TTS 客户端的便捷函数
 

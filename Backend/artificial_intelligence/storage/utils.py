@@ -10,13 +10,15 @@ from threading import RLock
 from typing import Optional, Union
 
 from config.app_config import get_app_config as get_global_app_config
-from .models import StoredImage, StoredVideo
+from .models import StoredImage, StoredVideo, StoredAudio
 
 # URL 协议
 AUTOSAVE_URL_SCHEME = "autosave://"
 
 
-def resolve_autosave_url(root: Path, url: str) -> Union[StoredImage, StoredVideo, None]:
+def resolve_autosave_url(
+    root: Path, url: str
+) -> Union[StoredImage, StoredVideo, StoredAudio, None]:
     """解析 autosave:// URL 并返回对应的媒体元数据"""
     if not url or not url.startswith(AUTOSAVE_URL_SCHEME):
         return None
@@ -36,9 +38,18 @@ def resolve_autosave_url(root: Path, url: str) -> Union[StoredImage, StoredVideo
 
     mime = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
 
-    # 判断是视频还是图片
+    # 判断是视频、音频还是图片
     if category == "video" and kind == "generated":
         return StoredVideo(
+            session_id=session_id,
+            name=filename,
+            mime_type=mime,
+            path=path,
+            created_at=path.stat().st_mtime,
+            kind=kind,
+        )
+    elif category == "audio" and kind == "generated":
+        return StoredAudio(
             session_id=session_id,
             name=filename,
             mime_type=mime,

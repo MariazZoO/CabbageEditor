@@ -8,13 +8,10 @@ import mimetypes
 import time
 import uuid
 from pathlib import Path
-from threading import RLock
-from typing import Any, List, Optional, Tuple, Union
+from typing import Optional, Union
 
-from .models import StoredImage, StoredVideo
+from .models import StoredImage, StoredVideo, StoredAudio
 from .utils import (
-    AUTOSAVE_URL_SCHEME,
-    category_label,
     convert_path_to_autosave_url,
     mime_to_extension,
     resolve_autosave_url,
@@ -30,25 +27,12 @@ class MediaStore:
 
     功能：
     - 资源下载和保存 (URL -> 本地文件)
-    - 媒体文件的查询和管理
     - autosave:// URL 的构建和解析
     """
 
     def __init__(self, root: Path) -> None:
         self.root = root
         self.root.mkdir(parents=True, exist_ok=True)
-        self._lock = RLock()
-
-        # 图片存储索引
-        self._uploads: dict[str, dict[str, StoredImage]] = {}
-        self._generated_images: dict[str, list[StoredImage]] = {}
-
-        # 视频存储索引
-        self._videos: dict[str, list[StoredVideo]] = {}
-
-    # ========================================================================
-    # 核心资源保存方法 (URL优先)
-    # ========================================================================
 
     def save_resource_from_url(
         self,
@@ -113,8 +97,9 @@ class MediaStore:
             temp_filename = new_filename
 
         # 4. 创建元数据对象
-        # 判断是视频还是图片
+        # 判断是视频、音频还是图片
         is_video = mime.startswith("video/")
+        is_audio = mime.startswith("audio/")
 
         if is_video:
             stored = StoredVideo(
@@ -126,8 +111,15 @@ class MediaStore:
                 kind=kind,
                 source_image_url=url,  # 记录来源
             )
-            with self._lock:
-                self._videos.setdefault(session_id, []).append(stored)
+        elif is_audio:
+            stored = StoredAudio(
+                session_id=session_id,
+                name=temp_filename,
+                mime_type=mime,
+                path=file_path,
+                created_at=time.time(),
+                kind=kind,
+            )
         else:
             stored = StoredImage(
                 session_id=session_id,
@@ -138,162 +130,16 @@ class MediaStore:
                 created_at=time.time(),
                 kind=kind,
             )
-            with self._lock:
-                if kind == "uploads":
-                    self._uploads.setdefault(session_id, {})[category] = stored
-                else:
-                    self._generated_images.setdefault(session_id, []).append(stored)
 
         logger.info(f"资源已保存: {url} -> {file_path} ({mime})")
         return stored.local_url
 
-    # ========================================================================
-    # 查询与获取
-    # ========================================================================
-
-    def get_latest_upload(
-        self, session_id: str, category: str
-    ) -> Optional[StoredImage]:
-        """获取最新上传的图片"""
-        with self._lock:
-            return self._uploads.get(session_id, {}).get(category)
-
-    def get_latest_pair(
-        self, session_id: str
-    ) -> Tuple[Optional[StoredImage], Optional[StoredImage]]:
-        """获取最新的产品图和场景图"""
-        with self._lock:
-            uploads = self._uploads.get(session_id, {})
-            return uploads.get("product"), uploads.get("scene")
-
-    def list_generated_images(self, session_id: str) -> List[StoredImage]:
-        """列出会话中生成的所有图片"""
-        with self._lock:
-            return list(self._generated_images.get(session_id, []))
-
-    def list_videos(self, session_id: str) -> List[StoredVideo]:
-        """列出会话中的所有视频"""
-        with self._lock:
-            return list(self._videos.get(session_id, []))
-
-    def register_reference(
-        self, session_id: str, category: str, stored: StoredImage
-    ) -> None:
-        """注册引用图片"""
-        with self._lock:
-            self._uploads.setdefault(session_id, {})[category] = stored
-
-    # ========================================================================
-    # URL 解析与构建
-    # ========================================================================
-
-    def resolve_url(self, url: str) -> Union[StoredImage, StoredVideo, None]:
+    def resolve_url(
+        self, url: str
+    ) -> Union[StoredImage, StoredVideo, StoredAudio, None]:
         """解析 autosave:// URL 并返回对应的媒体元数据"""
         return resolve_autosave_url(self.root, url)
 
     def path_to_url(self, path_str: Optional[str]) -> Optional[str]:
         """将文件路径转换为 autosave:// URL"""
         return convert_path_to_autosave_url(self.root, path_str)
-
-    # ========================================================================
-    # 辅助方法
-    # ========================================================================
-
-    def clone_image_to_session(
-        self, stored: Optional[StoredImage], session_id: str, category: str
-    ) -> StoredImage:
-        """克隆图片到新会话"""
-        if stored is None:
-            raise ValueError("无法克隆不存在的图片")
-
-        # 直接文件复制
-        try:
-            original_path = stored.path
-            if not original_path.exists():
-                raise FileNotFoundError(f"源文件不存在: {original_path}")
-
-            # 构建新路径
-            ext = original_path.suffix
-            token = uuid.uuid4().hex[:8]
-            new_filename = f"{stored.name.split('.')[0]}_{token}{ext}"  # 简单重命名
-
-            save_dir = self.root / session_id / "uploads" / category
-            save_dir.mkdir(parents=True, exist_ok=True)
-            new_path = save_dir / new_filename
-
-            new_path.write_bytes(original_path.read_bytes())
-
-            new_stored = StoredImage(
-                session_id=session_id,
-                category=category,
-                name=new_filename,
-                mime_type=stored.mime_type,
-                path=new_path,
-                created_at=time.time(),
-                kind="uploads",
-            )
-
-            with self._lock:
-                self._uploads.setdefault(session_id, {})[category] = new_stored
-
-            return new_stored
-
-        except Exception as e:
-            logger.error(f"克隆图片失败: {e}")
-            raise
-
-    def register_uploads(self, request: Any) -> List[str]:
-        """
-        注册用户上传的图片到会话 (支持 URL 下载)
-        """
-        notes: List[str] = []
-
-        if not hasattr(request, "images") or not hasattr(request, "session_id"):
-            logger.warning("register_uploads: request 对象无效")
-            return notes
-
-        for attachment in request.images:
-            stored = None
-            try:
-                # 优先处理 URL
-                if hasattr(attachment, "url") and attachment.url:
-                    # 检查是否已经是 autosave URL
-                    if attachment.url.startswith(AUTOSAVE_URL_SCHEME):
-                        stored = self.resolve_url(attachment.url)
-                        if (
-                            stored
-                            and isinstance(stored, StoredImage)
-                            and stored.session_id != request.session_id
-                        ):
-                            # 跨会话引用，克隆
-                            stored = self.clone_image_to_session(
-                                stored, request.session_id, attachment.category
-                            )
-                    else:
-                        # 外部 URL，下载并保存
-                        local_url = self.save_resource_from_url(
-                            session_id=request.session_id,
-                            url=attachment.url,
-                            category=attachment.category,
-                            original_name=getattr(attachment, "name", None),
-                        )
-                        # 解析回 StoredImage 以便注册引用
-                        stored = self.resolve_url(local_url)
-
-                if stored and isinstance(stored, StoredImage):
-                    self.register_reference(
-                        request.session_id, attachment.category, stored
-                    )
-                    notes.append(
-                        f"已上传{category_label(attachment.category)}图片：{stored.local_url}"
-                    )
-                elif hasattr(attachment, "url") and attachment.url:
-                    # Fallback
-                    notes.append(
-                        f"引用{category_label(attachment.category)}图片：{attachment.url}"
-                    )
-            except Exception as e:
-                logger.error(f"处理上传附件失败: {e}")
-                continue
-
-        return notes

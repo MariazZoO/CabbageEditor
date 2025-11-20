@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List
 from pydantic import BaseModel, Field
 from langchain_core.tools import StructuredTool
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -16,26 +16,21 @@ from Backend.artificial_intelligence.models import get_chat_model
 # 定义参数模式
 class ProductTextInput(BaseModel):
     """产品文案生成的输入参数"""
-    product_name: str = Field(description="产品名称")
-    product_features: str = Field(description="产品特点或卖点，用逗号分隔")
+    instruction: str = Field(..., description="产品描述及要求")
     style: str = Field(default="专业", description="文案风格，可选：专业、活泼、高端、亲切、幽默")
     length: str = Field(default="中等", description="文案长度，可选：简短、中等、详细")
 
 
 class MarketingTextInput(BaseModel):
     """营销文案生成的输入参数"""
-    theme: str = Field(description="营销主题，如：618大促、新品发布、会员日等")
-    target_audience: str = Field(description="目标受众，如：年轻人、企业主、家庭用户等")
-    key_points: str = Field(description="营销要点，用逗号分隔")
+    instruction: str = Field(..., description="营销活动描述及要求")
     platform: str = Field(default="通用", description="投放平台，可选：通用、微信、微博、抖音、小红书")
     tone: str = Field(default="激励", description="文案语气，可选：激励、温暖、紧迫、趣味")
 
 
 class CreativeTextInput(BaseModel):
     """创意文案生成的输入参数"""
-    content_type: str = Field(description="内容类型，如：故事、诗歌、剧本、广告语、slogan等")
-    theme: str = Field(description="创作主题")
-    keywords: Optional[str] = Field(default=None, description="关键词，用逗号分隔（可选）")
+    instruction: str = Field(..., description="创作主题及要求")
     style: str = Field(default="现代", description="创作风格，可选：现代、古典、浪漫、科技、悬疑等")
     length: str = Field(default="中等", description="作品长度，可选：简短、中等、长篇")
 
@@ -207,18 +202,21 @@ def load_text_tools(config: AIConfig) -> List[StructuredTool]:
     tools = [
         StructuredTool(
             name="generate_product_text",
-            description="生成产品文案",
+            description="生成产品文案，包括产品描述、卖点提炼、广告语等",
             func=_generate_product_text,
+            args_schema=ProductTextInput,  # 添加参数模式
         ),
         StructuredTool(
             name="generate_marketing_text",
-            description="生成营销文案",
+            description="生成营销文案，包括活动宣传、社交媒体文案等",
             func=_generate_marketing_text,
+            args_schema=MarketingTextInput,  # 添加参数模式
         ),
         StructuredTool(
             name="generate_creative_text",
-            description="生成创意文案",
+            description="生成创意文案，包括故事、剧本、诗歌等",
             func=_generate_creative_text,
+            args_schema=CreativeTextInput,  # 添加参数模式
         ),
     ]
 

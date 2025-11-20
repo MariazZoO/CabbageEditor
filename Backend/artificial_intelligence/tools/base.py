@@ -15,7 +15,7 @@ from Backend.artificial_intelligence.tools.media.music_tools import load_music_t
 def load_tools(config: AIConfig) -> list[BaseTool]:
     tools: list[BaseTool] = []
     tools.extend(load_builtin_tools())
-    # tools.extend(load_text_tools(config))
+    tools.extend(load_text_tools(config))
     tools.extend(load_mcp_tools(config))
     tools.extend(load_image_tools(config))
     tools.extend(load_video_tools(config))

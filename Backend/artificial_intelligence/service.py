@@ -2,31 +2,23 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict
 
-from Backend.artificial_intelligence.agent.executor import run_agent
-from Backend.artificial_intelligence.agent.conversation import (
-    default_session_id,
-    get_history,
-    update_history,
+from Backend.artificial_intelligence.agent.conversation import default_session_id
+from Backend.artificial_intelligence.agent.helpers import (
+    process_chat_request,
+    fallback_completion,
 )
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, BaseMessage
 from Backend.artificial_intelligence.agent.adapters import (
-    build_user_message,
-    coerce_messages,
     extract_image_payload,
     extract_text,
-    log_ai_messages,
 )
 from Backend.artificial_intelligence.config.ai_config import get_ai_config
-from Backend.artificial_intelligence.models import get_chat_model
 from Backend.artificial_intelligence.storage import get_media_store
 from Backend.artificial_intelligence.tools.session import (
     reset_current_session,
     set_current_session,
 )
-
-from Backend.artificial_intelligence.agent.requests import normalize_request
 
 
 _MEDIA_STORE = get_media_store()
@@ -34,7 +26,7 @@ _MEDIA_STORE = get_media_store()
 
 def handle_integrated_entrance(payload: Any) -> str:
     """
-    统一的聊天接口，支持以下三种调用方式：
+    统一的聊天接口，支持以下两种调用方式：
 
     1. 用户消息（带图片上传）:
     {
@@ -52,65 +44,23 @@ def handle_integrated_entrance(payload: Any) -> str:
 
     2. 简单文本消息:
     "用户的文本消息"
-
-    3. LangChain标准消息列表:
-    [
-        {"role": "user", "content": "..."},
-        {"role": "assistant", "content": "..."},
-        ...
-    ]
-    或直接传递 List[BaseMessage]
     """
     try:
-        # 情况3: 检查是否是 LangChain 消息列表
-        if isinstance(payload, list):
-            # 检查是否是 BaseMessage 列表
-            if payload and isinstance(payload[0], BaseMessage):
-                return _build_langchain_messages(payload, default_session_id())
-            # 检查是否是标准消息格式的字典列表
-            elif payload and isinstance(payload[0], dict) and "role" in payload[0]:
-                # 转换为 BaseMessage 列表
-                messages = _convert_to_base_messages(payload)
-                return _build_langchain_messages(messages, default_session_id())
+        # 调用 agent 处理请求
+        result = process_chat_request(payload)
+        messages = result["messages"]
+        session_id = result["session_id"]
+        pending_history = result["pending_history"]
 
-        # 情况1和2: 用户消息（可能带图片）
-        request = normalize_request(payload, default_session_id())
-        stored_history = get_history(request.session_id)
-
-        user_message = build_user_message(request)
-        # user_message为dict，需转为BaseMessage
-        pending_history = [
-            *stored_history,
-            HumanMessage(content=user_message["content"]),
-        ]
-
-        token = set_current_session(request.session_id)
-        try:
-            # 直接调用 agent
-            state = run_agent(pending_history)
-            log_ai_messages(state)
-        finally:
-            reset_current_session(token)
-
-        messages = coerce_messages(state)
-        # messages为dict列表，提取assistant消息并转为AIMessage
-        history_extension = []
-        for m in messages:
-            if isinstance(m, dict) and m.get("role") == "assistant":
-                content = m.get("content")
-                # 确保content为数组
-                if isinstance(content, str):
-                    content = [{"type": "text", "text": content}]
-                history_extension.append(AIMessage(content=content))
-            elif isinstance(m, AIMessage):
-                history_extension.append(m)
-        update_history(request.session_id, [*pending_history, *history_extension])
-
+        # 提取文本内容
         content = extract_text(messages)
         if not content.strip():
-            content = _fallback_completion(pending_history)
+            content = fallback_completion(pending_history)
 
+        # 提取图片数据（如果有）
         image_payload = extract_image_payload(messages)
+
+        # 构建响应
         response: Dict[str, Any] = {
             "type": (
                 image_payload.get("type", "ai_response")
@@ -120,8 +70,9 @@ def handle_integrated_entrance(payload: Any) -> str:
             "content": content,
             "status": "success",
             "timestamp": int(time.time()),
-            "session_id": request.session_id,
+            "session_id": session_id,
         }
+
         if image_payload:
             response.update(
                 {
@@ -131,6 +82,7 @@ def handle_integrated_entrance(payload: Any) -> str:
                     "image_url": image_payload.get("image_url"),
                 }
             )
+
         return json.dumps(response, ensure_ascii=False)
 
     except Exception as e:
@@ -317,95 +269,6 @@ def handle_video_generation(payload: Any) -> str:
             "content": str(e),
         }
         return json.dumps(error_response, ensure_ascii=False)
-
-
-def _convert_to_base_messages(message_dicts: List[Dict[str, Any]]) -> List[BaseMessage]:
-    """
-    将标准消息格式转换为 LangChain BaseMessage 列表
-    """
-    messages: List[BaseMessage] = []
-    for msg in message_dicts:
-        role = msg.get("role", "user")
-        content = msg.get("content", "")
-
-        if role == "system":
-            messages.append(SystemMessage(content=content))
-        elif role in ("user", "human"):
-            messages.append(HumanMessage(content=content))
-        elif role in ("assistant", "ai"):
-            messages.append(AIMessage(content=content))
-        else:
-            # 默认作为用户消息处理
-            messages.append(HumanMessage(content=content))
-
-    return messages
-
-
-def _build_langchain_messages(messages: List[BaseMessage], session_id: str) -> str:
-    """
-    处理 LangChain 消息列表的内部方法
-    """
-    token = set_current_session(session_id)
-    try:
-        state = run_agent(messages)
-        log_ai_messages(state)
-    finally:
-        reset_current_session(token)
-
-    response_messages = coerce_messages(state)
-    content = extract_text(response_messages)
-
-    if not content.strip():
-        content = _fallback_completion(messages)
-
-    image_payload = extract_image_payload(response_messages)
-    response: Dict[str, Any] = {
-        "type": (
-            image_payload.get("type", "ai_response") if image_payload else "ai_response"
-        ),
-        "content": content,
-        "status": "success",
-        "timestamp": int(time.time()),
-        "session_id": session_id,
-    }
-    if image_payload:
-        response.update(
-            {
-                "image_base64": image_payload.get("image_base64"),
-                "image_name": image_payload.get("image_name"),
-                "image_path": image_payload.get("image_path"),
-                "image_url": image_payload.get("image_url"),
-            }
-        )
-    return json.dumps(response, ensure_ascii=False)
-
-
-def _fallback_completion(history: List[BaseMessage]) -> str:
-    """
-    备用完成方法：直接使用 LLM 而不经过 agent。
-    接受标准的 LangChain BaseMessage 列表。
-    """
-    cfg = get_ai_config()
-    chat_cfg = cfg.chat
-    llm = get_chat_model(
-        cfg,
-        provider_name=chat_cfg.provider,
-        model_name=chat_cfg.model,
-        temperature=chat_cfg.temperature,
-        request_timeout=chat_cfg.request_timeout,
-    )
-    # 添加系统提示
-    prompt_messages: List[BaseMessage] = [
-        SystemMessage(content=chat_cfg.system_prompt),
-        *history,
-    ]
-    ai_message = llm.invoke(prompt_messages)
-    content = ai_message.content or ""
-    # content为数组时提取text
-    if isinstance(content, list):
-        content = "\n".join([b["text"] for b in content if b.get("type") == "text"])
-    print(f"[AIMessage] {content}")
-    return content
 
 
 def handle_text_generation(payload: Any) -> str:

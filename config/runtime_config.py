@@ -1,7 +1,8 @@
 """
 运行时配置
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
+from typing import Any, Dict
 
 
 @dataclass(frozen=True)
@@ -11,4 +12,16 @@ class RuntimeConfig:
     log_level: str = "INFO"
     debug_mode: bool = False
     InnerAgentWorkFlow: bool = False
+    InnerAgentRepoUrl: str = "https://github.com/CoronaEngine/InnerAgentWorkflow.git"
+    InnerAgentTargetDir: str = "./Backend/artificial_intelligence/agent/inner_workflow"
+
+    @classmethod
+    def get_defaults(cls) -> Dict[str, Any]:
+        """获取所有字段的默认值"""
+        from dataclasses import MISSING
+        return {
+            f.name: f.default
+            for f in fields(cls)
+            if f.default is not MISSING
+        }
 

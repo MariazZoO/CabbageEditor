@@ -6,6 +6,12 @@ from typing import Literal, TYPE_CHECKING, Tuple, List
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
+from Backend.artificial_intelligence.tools.response_adapter import (
+    build_part,
+    build_success_result,
+    build_error_result,
+)
+
 if TYPE_CHECKING:
     from Backend.utils import SceneApplicationService
 
@@ -13,13 +19,17 @@ if TYPE_CHECKING:
 class SceneQueryInput(BaseModel):
     scene_name: str = Field(default="MainScene", description="要查询的场景名称")
     query: Literal["list_models", "get_model_by_name"] = Field(description="查询类型")
-    name: str | None = Field(default=None, description="当 query=get_model_by_name 时需要提供模型名")
+    name: str | None = Field(
+        default=None, description="当 query=get_model_by_name 时需要提供模型名"
+    )
 
 
 class TransformModelInput(BaseModel):
     scene_name: str = Field(default="MainScene", description="目标场景名称")
     model_name: str = Field(description="需要变换的模型名称")
-    operation: Literal["scale", "move", "rotate"] = Field(default="scale", description="变换类型")
+    operation: Literal["scale", "move", "rotate"] = Field(
+        default="scale", description="变换类型"
+    )
     scale_factor: float | None = Field(
         default=None,
         description="当 operation=scale 时的倍率（例如 2 表示放大两倍）",
@@ -38,28 +48,50 @@ def _build_scene_query_tool(scene_service: "SceneApplicationService") -> Structu
         query: Literal["list_models", "get_model_by_name"],
         name: str | None = None,
     ) -> str:
-        data = SceneQueryInput(scene_name=scene_name, query=query, name=name)
-        scene = scene_service.get_scene(data.scene_name)
-        if scene is None:
-            return json.dumps({"scene": data.scene_name, "actors": []}, ensure_ascii=False)
+        try:
+            data = SceneQueryInput(scene_name=scene_name, query=query, name=name)
+            scene = scene_service.get_scene(data.scene_name)
 
-        if data.query == "list_models":
-            actors = [actor.name for actor in scene.get_actors()]
-            return json.dumps({"scene": data.scene_name, "actors": actors}, ensure_ascii=False)
+            result_data = {}
+            if scene is None:
+                result_data = {"scene": data.scene_name, "actors": []}
+            elif data.query == "list_models":
+                actors = [actor.name for actor in scene.get_actors()]
+                result_data = {"scene": data.scene_name, "actors": actors}
+            elif data.query == "get_model_by_name":
+                actor = scene_service._find_actor(scene, data.name or "")
+                if actor is None:
+                    result_data = {
+                        "scene": data.scene_name,
+                        "actor": None,
+                        "found": False,
+                    }
+                else:
+                    result_data = {
+                        "scene": data.scene_name,
+                        "actor": actor.name,
+                        "path": actor.path,
+                        "found": True,
+                    }
+            else:
+                return build_error_result(
+                    error_message=f"Unsupported query type: {data.query}"
+                ).to_envelope(interface_type="scene")
 
-        if data.query == "get_model_by_name":
-            actor = scene_service._find_actor(scene, data.name or "")
-            if actor is None:
-                return json.dumps(
-                    {"scene": data.scene_name, "actor": None, "found": False},
-                    ensure_ascii=False,
-                )
-            return json.dumps(
-                {"scene": data.scene_name, "actor": actor.name, "path": actor.path, "found": True},
-                ensure_ascii=False,
+            # 构建 part
+            part = build_part(
+                content_type="text",
+                content_text=json.dumps(result_data, ensure_ascii=False),
             )
 
-        raise ValueError(f"Unsupported query type: {data.query}")
+            # 返回成功结果
+            return build_success_result(parts=[part]).to_envelope(
+                interface_type="scene"
+            )
+        except Exception as e:
+            return build_error_result(error_message=str(e)).to_envelope(
+                interface_type="scene"
+            )
 
     return StructuredTool(
         name="scene_query",
@@ -78,34 +110,56 @@ def _build_transform_tool(scene_service: "SceneApplicationService") -> Structure
         scale_factor: float | None = None,
         vector: Tuple[float, float, float] | None = None,
     ) -> str:
-        data = TransformModelInput(
-            scene_name=scene_name,
-            model_name=model_name,
-            operation=operation,
-            scale_factor=scale_factor,
-            vector=vector,
-        )
-        op = data.operation.lower()
-        if op == "scale":
-            if data.scale_factor is not None:
-                vector = [data.scale_factor] * 3
-            elif data.vector is not None:
-                vector = list(data.vector)
+        try:
+            data = TransformModelInput(
+                scene_name=scene_name,
+                model_name=model_name,
+                operation=operation,
+                scale_factor=scale_factor,
+                vector=vector,
+            )
+            op = data.operation.lower()
+            if op == "scale":
+                if data.scale_factor is not None:
+                    vector = [data.scale_factor] * 3
+                elif data.vector is not None:
+                    vector = list(data.vector)
+                else:
+                    raise ValueError("scale 操作需要提供 scale_factor 或 vector")
+                payload = scene_service.apply_transform(
+                    data.scene_name, data.model_name, "Scale", vector
+                )
+            elif op == "move":
+                if data.vector is None:
+                    raise ValueError("move 操作需要提供 vector")
+                payload = scene_service.apply_transform(
+                    data.scene_name, data.model_name, "Move", list(data.vector)
+                )
+            elif op == "rotate":
+                if data.vector is None:
+                    raise ValueError("rotate 操作需要提供 vector")
+                payload = scene_service.apply_transform(
+                    data.scene_name, data.model_name, "Rotate", list(data.vector)
+                )
             else:
-                raise ValueError("scale 操作需要提供 scale_factor 或 vector")
-            payload = scene_service.apply_transform(data.scene_name, data.model_name, "Scale", vector)
-        elif op == "move":
-            if data.vector is None:
-                raise ValueError("move 操作需要提供 vector")
-            payload = scene_service.apply_transform(data.scene_name, data.model_name, "Move", list(data.vector))
-        elif op == "rotate":
-            if data.vector is None:
-                raise ValueError("rotate 操作需要提供 vector")
-            payload = scene_service.apply_transform(data.scene_name, data.model_name, "Rotate", list(data.vector))
-        else:
-            raise ValueError(f"Unsupported operation '{data.operation}'")
+                return build_error_result(
+                    error_message=f"Unsupported operation '{data.operation}'"
+                ).to_envelope(interface_type="scene")
 
-        return json.dumps(payload, ensure_ascii=False)
+            # 构建 part
+            part = build_part(
+                content_type="text",
+                content_text=json.dumps(payload, ensure_ascii=False),
+            )
+
+            # 返回成功结果
+            return build_success_result(parts=[part]).to_envelope(
+                interface_type="scene"
+            )
+        except Exception as e:
+            return build_error_result(error_message=str(e)).to_envelope(
+                interface_type="scene"
+            )
 
     return StructuredTool(
         name="transform_model",

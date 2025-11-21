@@ -11,27 +11,43 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from Backend.artificial_intelligence.config.ai_config import AIConfig
 from Backend.artificial_intelligence.models import get_chat_model
+from Backend.artificial_intelligence.tools.response_adapter import (
+    build_part,
+    build_success_result,
+    build_error_result,
+)
 
 
 # 定义参数模式
 class ProductTextInput(BaseModel):
     """产品文案生成的输入参数"""
+
     instruction: str = Field(..., description="产品描述及要求")
-    style: str = Field(default="专业", description="文案风格，可选：专业、活泼、高端、亲切、幽默")
+    style: str = Field(
+        default="专业", description="文案风格，可选：专业、活泼、高端、亲切、幽默"
+    )
     length: str = Field(default="中等", description="文案长度，可选：简短、中等、详细")
 
 
 class MarketingTextInput(BaseModel):
     """营销文案生成的输入参数"""
+
     instruction: str = Field(..., description="营销活动描述及要求")
-    platform: str = Field(default="通用", description="投放平台，可选：通用、微信、微博、抖音、小红书")
-    tone: str = Field(default="激励", description="文案语气，可选：激励、温暖、紧迫、趣味")
+    platform: str = Field(
+        default="通用", description="投放平台，可选：通用、微信、微博、抖音、小红书"
+    )
+    tone: str = Field(
+        default="激励", description="文案语气，可选：激励、温暖、紧迫、趣味"
+    )
 
 
 class CreativeTextInput(BaseModel):
     """创意文案生成的输入参数"""
+
     instruction: str = Field(..., description="创作主题及要求")
-    style: str = Field(default="现代", description="创作风格，可选：现代、古典、浪漫、科技、悬疑等")
+    style: str = Field(
+        default="现代", description="创作风格，可选：现代、古典、浪漫、科技、悬疑等"
+    )
     length: str = Field(default="中等", description="作品长度，可选：简短、中等、长篇")
 
 
@@ -101,8 +117,30 @@ def load_text_tools(config: AIConfig) -> List[StructuredTool]:
             HumanMessage(content=prompt),
         ]
 
-        response = llm.invoke(messages)
-        return response.content
+        try:
+            response = llm.invoke(messages)
+
+            # 构建 part
+            part = build_part(
+                content_type="text",
+                content_text=response.content,
+                parameter={
+                    "text_type": "product_text",
+                },
+            )
+
+            # 返回成功结果
+            return build_success_result(
+                parts=[part],
+                metadata={
+                    "style": style,
+                    "length": length,
+                },
+            ).to_envelope(interface_type="text")
+        except Exception as e:
+            return build_error_result(error_message=str(e)).to_envelope(
+                interface_type="text"
+            )
 
     def _generate_marketing_text(
         instruction: str,
@@ -150,8 +188,30 @@ def load_text_tools(config: AIConfig) -> List[StructuredTool]:
             HumanMessage(content=prompt),
         ]
 
-        response = llm.invoke(messages)
-        return response.content
+        try:
+            response = llm.invoke(messages)
+
+            # 构建 part
+            part = build_part(
+                content_type="text",
+                content_text=response.content,
+                parameter={
+                    "text_type": "marketing_text",
+                },
+            )
+
+            # 返回成功结果
+            return build_success_result(
+                parts=[part],
+                metadata={
+                    "platform": platform,
+                    "tone": tone,
+                },
+            ).to_envelope(interface_type="text")
+        except Exception as e:
+            return build_error_result(error_message=str(e)).to_envelope(
+                interface_type="text"
+            )
 
     def _generate_creative_text(
         instruction: str,
@@ -195,8 +255,30 @@ def load_text_tools(config: AIConfig) -> List[StructuredTool]:
             HumanMessage(content=prompt),
         ]
 
-        response = llm.invoke(messages)
-        return response.content
+        try:
+            response = llm.invoke(messages)
+
+            # 构建 part
+            part = build_part(
+                content_type="text",
+                content_text=response.content,
+                parameter={
+                    "text_type": "creative_text",
+                },
+            )
+
+            # 返回成功结果
+            return build_success_result(
+                parts=[part],
+                metadata={
+                    "style": style,
+                    "length": length,
+                },
+            ).to_envelope(interface_type="text")
+        except Exception as e:
+            return build_error_result(error_message=str(e)).to_envelope(
+                interface_type="text"
+            )
 
     # 创建三个结构化工具，带有明确的参数模式
     tools = [

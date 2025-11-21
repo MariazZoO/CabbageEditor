@@ -27,7 +27,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import time
 from dataclasses import dataclass
@@ -38,6 +37,11 @@ from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
 from Backend.artificial_intelligence.config.ai_config import AIConfig
+from Backend.artificial_intelligence.tools.response_adapter import (
+    build_part,
+    build_success_result,
+    build_error_result,
+)
 
 _DEFAULT_BASE_URL = "https://api.sunoapi.org"
 
@@ -183,13 +187,8 @@ def load_music_tools(config: AIConfig):
         )
 
         if not data.prompt.strip():
-            return json.dumps(
-                {
-                    "type": "bgm_generation",
-                    "status": "failed",
-                    "error": "提示词不能为空",
-                },
-                ensure_ascii=False,
+            return build_error_result(error_message="提示词不能为空").to_envelope(
+                interface_type="music"
             )
 
         # 准备请求载荷，根据Suno API文档格式
@@ -214,31 +213,31 @@ def load_music_tools(config: AIConfig):
         try:
             initial = _post_generate_music(provider, payload)
         except Exception as e:
-            return json.dumps(
-                {
-                    "type": "bgm_generation",
-                    "status": "failed",
-                    "error": f"发起生成请求失败: {e}",
-                },
-                ensure_ascii=False,
-            )
+            return build_error_result(
+                error_message=f"发起生成请求失败: {e}"
+            ).to_envelope(interface_type="music")
 
         # 从API响应中提取taskId: {code: 200, data: {taskId: "xxx"}}
         data_obj = initial.get("data", {})
         task_id = data_obj.get("taskId") or initial.get("taskId")
-        result_payload = {
-            "type": "bgm_generation",
-            "status": "submitted" if data.wait else "pending",
-            "task_id": task_id,
-            "model": data.model,
-            "prompt": data.prompt,
-            "style": data.style,
-            "request": payload,
-            "raw_response": initial,
-        }
 
         if not data.wait or not task_id:
-            return json.dumps(result_payload, ensure_ascii=False)
+            # 异步返回，仅返回任务ID
+            part = build_part(
+                content_type="text",
+                content_text=f"任务已提交，ID: {task_id}",
+                parameter={
+                    "music_style": data.style,
+                },
+            )
+            return build_success_result(
+                parts=[part],
+                metadata={
+                    "task_id": task_id,
+                    "status": "submitted",
+                    "model": data.model,
+                },
+            ).to_envelope(interface_type="music")
 
         # 轮询任务状态
         start = time.time()
@@ -268,25 +267,23 @@ def load_music_tools(config: AIConfig):
                     break
                 time.sleep(data.poll_interval)
         except KeyboardInterrupt:
-            result_payload["status"] = "interrupted"
-            result_payload["details"] = last_details
-            return json.dumps(result_payload, ensure_ascii=False)
+            return build_error_result(error_message="任务被中断").to_envelope(
+                interface_type="music"
+            )
 
         # 解析最终状态
         data_obj = (
             last_details.get("data", {}) if isinstance(last_details, dict) else {}
         )
         status = data_obj.get("status") or "UNKNOWN"
-        result_payload["status"] = status
-        result_payload["details"] = last_details
 
         # 检查是否有错误
         error_code = data_obj.get("errorCode")
         error_message = data_obj.get("errorMessage")
         if error_code or error_message:
-            result_payload["error"] = (
-                f"errorCode={error_code}, errorMessage={error_message}"
-            )
+            return build_error_result(
+                error_message=f"errorCode={error_code}, errorMessage={error_message}"
+            ).to_envelope(interface_type="music")
 
         # 成功则返回音频URL信息
         # 状态为 SUCCESS 或 FIRST_SUCCESS 时表示生成成功
@@ -296,41 +293,38 @@ def load_music_tools(config: AIConfig):
             suno_data = response_obj.get("sunoData", [])
 
             if isinstance(suno_data, list) and len(suno_data) > 0:
-                # 保存所有音频的URL信息（不下载）
-                result_payload["audio_list"] = []
-
+                parts = []
                 for idx, audio_item in enumerate(suno_data):
                     audio_url = audio_item.get("audioUrl")
                     if not audio_url:
                         continue
 
-                    # 保存每个音频的信息（仅URL和元数据，不下载）
-                    audio_info = {
-                        "index": idx + 1,
-                        "id": audio_item.get("id"),
-                        "title": audio_item.get("title"),
-                        "duration": audio_item.get("duration"),
-                        "image_url": audio_item.get("imageUrl"),
-                        "model_name": audio_item.get("modelName"),
-                        "tags": audio_item.get("tags"),
-                        "audio_url": audio_url,
-                    }
-                    result_payload["audio_list"].append(audio_info)
+                    part = build_part(
+                        content_type="audio",
+                        content_text=audio_item.get("title") or data.prompt,
+                        content_url=audio_url,
+                        parameter={
+                            "duration": audio_item.get("duration"),
+                            "music_style": data.style,
+                        },
+                    )
+                    parts.append(part)
 
-                # 为了向后兼容，保留 audio 字段指向第一个音频
-                if result_payload["audio_list"]:
-                    first_audio = result_payload["audio_list"][0]
-                    result_payload["audio"] = {
-                        "audio_url": first_audio["audio_url"],
-                        "id": first_audio["id"],
-                        "title": first_audio["title"],
-                        "duration": first_audio["duration"],
-                    }
-                    result_payload["audio_count"] = len(result_payload["audio_list"])
+                return build_success_result(
+                    parts=parts,
+                    metadata={
+                        "model": data.model,
+                        "task_id": task_id,
+                    },
+                ).to_envelope(interface_type="music")
             else:
-                result_payload["warning"] = "未在结果中找到音频数据"
+                return build_error_result(
+                    error_message="未在结果中找到音频数据"
+                ).to_envelope(interface_type="music")
 
-        return json.dumps(result_payload, ensure_ascii=False)
+        return build_error_result(
+            error_message=f"任务未成功完成，状态: {status}"
+        ).to_envelope(interface_type="music")
 
     tool = StructuredTool(
         name="generate_bgm_music",

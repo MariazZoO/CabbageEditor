@@ -44,71 +44,50 @@ def pick_tool(tools: List[Any], names: Iterable[str]) -> Any:
     raise RuntimeError(f"未找到匹配的工具: {', '.join(names)}")
 
 
-def make_response(
-    response_type: str,
-    status: str = "success",
-    session_id: Optional[str] = None,
-    **kwargs: Any,
-) -> str:
-    """原始（旧格式）响应构造，保留兼容。"""
-    body: Dict[str, Any] = {
-        "type": response_type,
-        "status": status,
-        "timestamp": int(time.time()),
-        "session_id": session_id or default_session_id(),
-    }
-    body.update(kwargs)
-    return json.dumps(body, ensure_ascii=False)
-
-
-def make_error(response_type: str, session_id: Optional[str], exc: Exception) -> str:
-    """旧格式错误响应。"""
-    return make_response(
-        response_type=response_type,
-        status="error",
-        session_id=session_id,
-        content=str(exc),
-    )
-
-
-def build_multilayer_success(
+def build_success_response(
     interface_type: str,
     session_id: str,
-    metadata: Dict[str, Any],
-    parts: List[Dict[str, Any]],
+    metadata: Dict[str, Any] | None = None,
+    parts: List[Dict[str, Any]] | None = None,
     role: str = "assistant",
+    llm_content: List[Dict[str, Any]] | None = None,
 ) -> str:
-    """构造三层成功结构，匹配 tests 期望。
+    """构造成功响应结构。
 
     顶层: session_id, error_code(0), status_info("ok"), llm_content(list), metadata(dict)
     第二层: role, interface_type, sent_time_stamp(int), part(list)
     第三层: part 元素包含 content_type / content_text|content_url / 可选 parameter(dict)
     """
-    body: Dict[str, Any] = {
-        "session_id": session_id,
-        "error_code": 0,
-        "status_info": "ok",
-        "llm_content": [
+    if llm_content is None:
+        if parts is None:
+            parts = []
+        llm_content = [
             {
                 "role": role,
                 "interface_type": interface_type,
                 "sent_time_stamp": int(time.time()),
                 "part": parts,
             }
-        ],
+        ]
+
+    body: Dict[str, Any] = {
+        "session_id": session_id,
+        "error_code": 0,
+        "status_info": "ok",
+        "llm_content": llm_content,
         "metadata": metadata or {},
     }
     return json.dumps(body, ensure_ascii=False)
 
 
-def build_multilayer_error(
+def build_error_response(
     interface_type: str,
-    session_id: str,
-    metadata: Dict[str, Any],
+    session_id: str | None,
     exc: Exception,
+    metadata: Dict[str, Any] | None = None,
     role: str = "assistant",
 ) -> str:
-    """构造三层错误结构，包含完整的 llm_content。
+    """构造错误响应结构。
 
     错误响应也应该符合三层结构：
     - 顶层: error_code=1, status_info=错误信息
@@ -119,7 +98,7 @@ def build_multilayer_error(
     exception_type = type(exc).__name__
 
     body: Dict[str, Any] = {
-        "session_id": session_id,
+        "session_id": session_id or default_session_id(),
         "error_code": 1,
         "status_info": error_message,
         "llm_content": [
@@ -149,8 +128,6 @@ __all__ = [
     "require_fields",
     "session_context",
     "pick_tool",
-    "make_response",
-    "make_error",
-    "build_multilayer_success",
-    "build_multilayer_error",
+    "build_success_response",
+    "build_error_response",
 ]

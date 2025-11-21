@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from PySide6.QtCore import QObject, Signal, Slot, QTimer
 
 from Backend.artificial_intelligence.service import handle_integrated_entrance
-from Backend.artificial_intelligence.service.common import make_error
+from Backend.artificial_intelligence.service.common import build_error_response
 from Backend.artificial_intelligence.config.ai_config import get_ai_config
 
 from Backend.artificial_intelligence.models import get_chat_model
@@ -107,10 +107,16 @@ class AIService(QObject):
             self.ai_response.emit(result)
 
         except BaseException as exc:
-            error_payload = make_error(
+            # 提取 metadata 以便透传
+            metadata = {}
+            if isinstance(msg_data, dict):
+                metadata = msg_data.get("metadata", {})
+
+            error_payload = build_error_response(
                 interface_type="integrated",
                 session_id=msg_data.get("session_id") if isinstance(msg_data, dict) else None,
-                exc=exc
+                exc=exc,
+                metadata=metadata
             )
             self.ai_response.emit(error_payload)
 
@@ -159,28 +165,26 @@ class AIService(QObject):
             }
 
         token = data.pop("token", None)  # 保存 token 用于响应
+        if token:
+            if "metadata" not in data:
+                data["metadata"] = {}
+            data["metadata"]["token"] = token
 
         try:
             result = await self._loop.run_in_executor(self._executor, handle_integrated_entrance, data)
-            # 如果有 token，添加到响应中
-            if token:
-                result_data = json.loads(result)
-                result_data["metadata"] = result_data.get("metadata", {})
-                result_data["metadata"]["token"] = token
-                result = json.dumps(result_data, ensure_ascii=False)
             self.ai_response.emit(result)
         except BaseException as exc:
-            error_payload = make_error(
+            # 构造 metadata 用于错误响应
+            metadata = {}
+            if token:
+                metadata["token"] = token
+
+            error_payload = build_error_response(
                 interface_type="integrated",
                 session_id=data.get("session_id"),
-                exc=exc
+                exc=exc,
+                metadata=metadata
             )
-            # 注入 token 到 metadata
-            if token:
-                err_data = json.loads(error_payload)
-                err_data["metadata"] = err_data.get("metadata", {})
-                err_data["metadata"]["token"] = token
-                error_payload = json.dumps(err_data, ensure_ascii=False)
             self.ai_response.emit(error_payload)
 
     def cleanup(self):

@@ -15,8 +15,8 @@ def get_weather(location: str) -> str:
     return f"{location} 当前天气：晴，22°C（模拟数据）"
 
 
-def load_builtin_tools():
+def load_test_tools():
     return [search, get_weather]
 
 
-__all__ = ["load_builtin_tools"]
+__all__ = ["load_test_tools"]

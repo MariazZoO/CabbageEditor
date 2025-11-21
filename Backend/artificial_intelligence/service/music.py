@@ -7,8 +7,8 @@ from Backend.artificial_intelligence.config.ai_config import get_ai_config
 
 from Backend.artificial_intelligence.service.common import (
     ensure_dict,
-    build_multilayer_error,
-    build_multilayer_success,
+    build_error_response,
+    build_success_response,
     session_context,
 )
 
@@ -55,39 +55,55 @@ def handle_music_generation(payload: Any) -> str:
         with session_context(session_id) as sid:
             result_json = music_tool.func(**tool_params)
             session_id = sid
-        tool_result = json.loads(result_json)
+        
+        # 解析 Tool 返回的 Envelope JSON
+        tool_envelope = json.loads(result_json)
 
-        # 检查工具返回的业务错误
-        if "error" in tool_result and tool_result["error"]:
-            raise RuntimeError(f"音乐生成失败: {tool_result['error']}")
-        tool_status = tool_result.get("status", "")
-        if tool_status in ["failed", "error"]:
-            error_msg = tool_result.get("error", "未知错误")
+        # 检查错误
+        if tool_envelope.get("error_code", 0) != 0:
+            error_msg = tool_envelope.get("status_info", "未知错误")
             raise RuntimeError(f"音乐生成失败: {error_msg}")
 
-        audio_list = tool_result.get("audio_list", [])
-        if not audio_list:
-            raise RuntimeError("音乐生成未返回任何音频")
+        # 提取 llm_content
+        llm_content = tool_envelope.get("llm_content", [])
+        if not llm_content:
+            raise RuntimeError("音乐生成未返回有效内容")
 
-        parts = [
-            {
-                "content_type": "audio",
-                "content_url": audio_list[0] if audio_list else "",
-                "parameter": {
-                    "music_style": tool_result.get("style"),
-                    "duration": request_data.get("duration", 20),
-                    "audio_count": len(audio_list),
-                },  # 过滤 model
+        # 提取并清洗 parts
+        original_parts = llm_content[0].get("part", [])
+        cleaned_parts = []
+        for part in original_parts:
+            cleaned_part = {
+                "content_type": part.get("content_type"),
+                "content_url": part.get("content_url"),
+                "content_text": part.get("content_text"),
             }
-        ]
-        return build_multilayer_success(
+            # 严格过滤 parameter
+            if "parameter" in part:
+                original_param = part["parameter"]
+                cleaned_param = {}
+                if "music_style" in original_param:
+                    cleaned_param["music_style"] = original_param["music_style"]
+                if "duration" in original_param:
+                    cleaned_param["duration"] = original_param["duration"]
+                if cleaned_param:
+                    cleaned_part["parameter"] = cleaned_param
+            
+            # 移除 None 值字段
+            cleaned_part = {k: v for k, v in cleaned_part.items() if v is not None}
+            cleaned_parts.append(cleaned_part)
+
+        if not cleaned_parts:
+            raise RuntimeError("音乐生成未返回有效的音频部分")
+
+        return build_success_response(
             interface_type="music",
             session_id=session_id,
             metadata=metadata,
-            parts=parts,
+            parts=cleaned_parts,
         )
     except Exception as exc:  # noqa: BLE001
-        return build_multilayer_error(
+        return build_error_response(
             interface_type="music",
             session_id=session_id,
             metadata=metadata,

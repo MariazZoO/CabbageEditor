@@ -7,8 +7,8 @@ from Backend.artificial_intelligence.config.ai_config import get_ai_config
 
 from Backend.artificial_intelligence.service.common import (
     ensure_dict,
-    build_multilayer_error,
-    build_multilayer_success,
+    build_error_response,
+    build_success_response,
     session_context,
 )
 
@@ -48,37 +48,53 @@ def handle_image_generation(payload: Any) -> str:
         with session_context(session_id) as sid:
             result_json = image_tool.func(prompt=prompt)
             session_id = sid  # 使用实际上下文 session
-        tool_result = json.loads(result_json)
 
-        # 检查工具返回的业务错误
-        if "error" in tool_result and tool_result["error"]:
-            raise RuntimeError(f"图像生成失败: {tool_result['error']}")
-        if tool_result.get("status") == "failed":
-            error_msg = tool_result.get("error", "未知错误")
+        # 解析 Tool 返回的 Envelope JSON
+        tool_envelope = json.loads(result_json)
+
+        # 检查错误
+        if tool_envelope.get("error_code", 0) != 0:
+            error_msg = tool_envelope.get("status_info", "未知错误")
             raise RuntimeError(f"图像生成失败: {error_msg}")
 
-        image_url = tool_result.get("image_url", "")
-        if not image_url:
-            raise RuntimeError("图像生成未返回有效的 URL")
+        # 提取 llm_content
+        llm_content = tool_envelope.get("llm_content", [])
+        if not llm_content:
+            raise RuntimeError("图像生成未返回有效内容")
 
-        parts = [
-            {
-                "content_type": "image",
-                "content_url": image_url,
-                "parameter": {
-                    "prompt": tool_result.get("prompt", prompt),
-                    "resolution": tool_result.get("resolution"),
-                },
+        # 提取并清洗 parts
+        original_parts = llm_content[0].get("part", [])
+        cleaned_parts = []
+        for part in original_parts:
+            cleaned_part = {
+                "content_type": part.get("content_type"),
+                "content_url": part.get("content_url"),
+                "content_text": part.get("content_text"),
             }
-        ]
-        return build_multilayer_success(
+            # 严格过滤 parameter
+            if "parameter" in part:
+                original_param = part["parameter"]
+                cleaned_param = {}
+                if "resolution" in original_param:
+                    cleaned_param["resolution"] = original_param["resolution"]
+                if cleaned_param:
+                    cleaned_part["parameter"] = cleaned_param
+
+            # 移除 None 值字段
+            cleaned_part = {k: v for k, v in cleaned_part.items() if v is not None}
+            cleaned_parts.append(cleaned_part)
+
+        if not cleaned_parts:
+            raise RuntimeError("图像生成未返回有效的图片部分")
+
+        return build_success_response(
             interface_type="image",
             session_id=session_id,
             metadata=metadata,
-            parts=parts,
+            parts=cleaned_parts,
         )
     except Exception as exc:  # noqa: BLE001
-        return build_multilayer_error(
+        return build_error_response(
             interface_type="image",
             session_id=session_id,
             metadata=metadata,

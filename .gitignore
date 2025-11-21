@@ -16,6 +16,7 @@ coverage.xml
 htmlcov/
 */package-lock.json
 *.toml
+llms.txt
 
 # ------------------------------
 # Virtual environments
@@ -52,6 +53,7 @@ Frontend/node_modules/
 Frontend/dist/
 Frontend/.vite/
 Frontend/.cache/
+Backend/artificial_intelligence/agent/inner_workflow
 
 # ------------------------------
 # Generated scripts/assets

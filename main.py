@@ -10,14 +10,17 @@ if str(REPO_ROOT) not in sys.path:
 
 # 2. 加载全局配置
 from config.app_config import get_app_config
+
 app_config = get_app_config()
 
 # 3. 设置环境变量（必须在导入 Qt 之前）
 if not app_config.runtime.enable_gpu:
-    os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--disable-gpu --disable-gpu-compositing --enable-logging=stderr"
+    os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (
+        "--disable-gpu --disable-gpu-compositing --enable-logging=stderr"
+    )
     os.environ["QTWEBENGINE_DISABLE_GPU"] = "1"
     os.environ["QT_QUICK_BACKEND"] = "software"
-    os.environ['QT_OPENGL'] = 'software'
+    os.environ["QT_OPENGL"] = "software"
     os.environ["QT_DISABLE_DIRECT_COMPOSITION"] = "1"
     print("GPU 已禁用 - 使用软件渲染模式")
 
@@ -27,6 +30,7 @@ sys.path.append(str(app_config.paths.repo_root))
 # 4. 初始化日志（尽早进行）
 try:
     from Backend.utils import configure_logging
+
     configure_logging()
 except Exception:
     pass
@@ -38,17 +42,17 @@ def main():
     支持服务端和客户端两种模式
     """
     # 优先从环境变量读取 APP_MODE，这对于 Docker 部署至关重要
-    app_mode = os.environ.get('APP_MODE', 'client').lower()
+    app_mode = os.environ.get("APP_MODE", "client").lower()
 
     print(f"--- Starting application in {app_mode.upper()} mode ---")
 
     # 根据模式选择执行逻辑
-    if app_mode == 'server':
+    if app_mode == "server":
         # 服务器模式：启动 AI 服务的 HTTP API
         from Backend.network_service.server import app
 
-        host = os.environ.get('SERVER_HOST', '0.0.0.0')
-        port = os.environ.get('SERVER_PORT', '20100')
+        host = os.environ.get("SERVER_HOST", "0.0.0.0")
+        port = os.environ.get("SERVER_PORT", "20100")
 
         print(f"Starting server at {host}:{port}")
 
@@ -70,18 +74,18 @@ def main():
                     return self.application
 
             options = {
-                'bind': f'{host}:{port}',
-                'workers': 4,
-                'timeout': 120,
-                'accesslog': '-',
-                'errorlog': '-',
+                "bind": f"{host}:{port}",
+                "workers": 4,
+                "timeout": 120,
+                "accesslog": "-",
+                "errorlog": "-",
             }
             StandaloneApplication(app, options).run()
         except ImportError:
             # 回退到 Flask 开发服务器
             app.run(host=host, port=port, debug=False)
 
-    elif app_mode == 'client':
+    elif app_mode == "client":
         # 客户端模式：启动 Qt 桌面应用
         print(f"Running in CLIENT mode. Starting Qt application...")
 
@@ -89,6 +93,7 @@ def main():
         from Backend.window_layout import main_window
         from Backend.utils.core.cleanup import cleanup_blockly_files
         from Backend.utils.gui.script_runner import ScriptRunner
+
         app, window = main_window.init_app()
         script_runner = ScriptRunner(app)
 
@@ -99,8 +104,12 @@ def main():
             app.processEvents()
 
     else:
-        print(f"Error: Unknown mode '{app_mode}'. Please use 'server' or 'client'.", file=sys.stderr)
+        print(
+            f"Error: Unknown mode '{app_mode}'. Please use 'server' or 'client'.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

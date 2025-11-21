@@ -13,23 +13,8 @@ import configparser
 from .runtime_config import RuntimeConfig
 from .paths_config import PathsConfig, get_default_paths
 
-# 配置文件路径
-CONFIG_DIR = Path(__file__).parent
-SETTINGS_FILE_INI = CONFIG_DIR / "settings.ini"
-SETTINGS_FILE_TOML = CONFIG_DIR / "settings.toml"
-USER_CONFIG_FILE = Path.home() / ".coronaengine" / "settings.toml"
-
 _CACHE: Optional["AppConfig"] = None
 
-
-# ========== 硬编码默认配置 ==========
-DEFAULT_CONFIG = {
-    "runtime": {
-        "enable_gpu": False,
-        "log_level": "INFO",
-        "debug_mode": False,
-    }
-}
 
 
 @dataclass(frozen=True)
@@ -113,21 +98,9 @@ def _apply_env_overrides(data: Dict[str, Any]) -> None:
 
 
 def _load_config_data() -> Dict[str, Any]:
-    """加载配置数据(优先级:环境变量 > 用户配置 > 项目配置 > 硬编码默认值)"""
-    # 1. 从硬编码默认值开始
-    merged = _deep_merge({}, DEFAULT_CONFIG)
-
-    # 2. 合并项目配置文件
-    if SETTINGS_FILE_INI.exists():
-        project = _load_ini(SETTINGS_FILE_INI)
-        merged = _deep_merge(merged, project)
-    elif SETTINGS_FILE_TOML.exists():
-        project = _load_toml(SETTINGS_FILE_TOML)
-        merged = _deep_merge(merged, project)
-
-    # 3. 合并用户配置
-    user = _load_toml(USER_CONFIG_FILE)
-    merged = _deep_merge(merged, user)
+    """加载配置数据(优先级:环境变量 > 用户配置 > 项目配置 > dataclass默认值)"""
+    # 1. 从 dataclass 默认值开始
+    merged = {"runtime": RuntimeConfig.get_defaults()}
 
     # 4. 应用环境变量覆盖
     _apply_env_overrides(merged)
@@ -158,10 +131,14 @@ def _build_app_config() -> AppConfig:
 
     # 加载运行时配置
     runtime_data = raw.get("runtime", {})
+    defaults = RuntimeConfig.get_defaults()
     runtime = RuntimeConfig(
-        enable_gpu=_as_bool(runtime_data.get("enable_gpu"), False),
-        log_level=str(runtime_data.get("log_level", "INFO")).upper(),
-        debug_mode=_as_bool(runtime_data.get("debug_mode"), False),
+        enable_gpu=_as_bool(runtime_data.get("enable_gpu"), defaults["enable_gpu"]),
+        log_level=str(runtime_data.get("log_level", defaults["log_level"])).upper(),
+        debug_mode=_as_bool(runtime_data.get("debug_mode"), defaults["debug_mode"]),
+        InnerAgentWorkFlow=_as_bool(runtime_data.get("InnerAgentWorkFlow"), defaults["InnerAgentWorkFlow"]),
+        InnerAgentRepoUrl=str(runtime_data.get("InnerAgentRepoUrl", defaults["InnerAgentRepoUrl"])),
+        InnerAgentTargetDir=str(runtime_data.get("InnerAgentTargetDir", defaults["InnerAgentTargetDir"])),
     )
 
     return AppConfig(

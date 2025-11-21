@@ -2,6 +2,7 @@
 Agent 适配器
 包含消息格式转换、请求规范化和日志记录等功能
 """
+
 from __future__ import annotations
 
 import json
@@ -12,6 +13,7 @@ from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
 
 # --- Request Normalization (Moved from requests.py) ---
+
 
 @dataclass(frozen=True)
 class ImageAttachment:
@@ -50,6 +52,35 @@ def normalize_request(raw: Any, default_session: str) -> IncomingRequest:
     if isinstance(raw, IncomingRequest):
         return raw
     session_id = default_session
+
+    # Handle new JSON structure
+    if isinstance(raw, dict) and "llm_content" in raw:
+        session_id = str(raw.get("session_id") or session_id)
+        llm_content = raw.get("llm_content", [])
+        text = ""
+        images = []
+
+        # Find latest user message
+        user_content = None
+        for content in reversed(llm_content):
+            if content.get("role") == "user":
+                user_content = content
+                break
+
+        if user_content:
+            for part in user_content.get("part", []):
+                if part.get("content_type") == "text":
+                    text += part.get("content_text", "") + "\n"
+                elif part.get("content_type") == "image":
+                    images.append(
+                        ImageAttachment(
+                            name="image",
+                            category="product",  # Default
+                            url=part.get("content_url"),
+                        )
+                    )
+        return IncomingRequest(session_id=session_id, text=text.strip(), images=images)
+
     if isinstance(raw, str):
         return IncomingRequest(session_id=session_id, text=raw, images=[])
     if isinstance(raw, dict):
@@ -61,6 +92,7 @@ def normalize_request(raw: Any, default_session: str) -> IncomingRequest:
 
 
 # --- Message Conversion (Original adapters.py content) ---
+
 
 def extract_text(messages: List[Any]) -> str:
     if not messages:
@@ -102,7 +134,7 @@ def build_user_message(request: IncomingRequest) -> Dict[str, Any]:
 
         if image_url:
             blocks.append({"type": "image_url", "image_url": {"url": image_url}})
-    
+
     if not blocks:
         blocks.append({"type": "text", "text": "[图片上传]"})
     # 只允许text和image_url类型

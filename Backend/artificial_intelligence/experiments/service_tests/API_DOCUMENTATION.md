@@ -83,10 +83,10 @@
 
 ---
 
-## 文案生成
+## 文本生成（原文案）
 
 ### 接口
-`handle_copywriting_generation(payload: dict) -> str`
+`handle_text_generation(payload: dict) -> str`
 
 ### 请求参数
 
@@ -131,8 +131,8 @@
 ### 响应示例
 ```json
 {
-    "type": "copywriting_generation",
-    "copywriting_type": "product",
+    "type": "text_generation",
+    "text_type": "product",
     "status": "success",
     "timestamp": 1700000000,
     "session_id": "session_xxx",
@@ -272,7 +272,7 @@
 from Backend.artificial_intelligence.service import (
     handle_image_generation,
     handle_video_generation,
-    handle_copywriting_generation,
+    handle_text_generation,
     handle_tts_generation,
     handle_music_generation,
 )
@@ -283,7 +283,7 @@ result = handle_image_generation({
 })
 
 # 文案生成
-result = handle_copywriting_generation({
+result = handle_text_generation({
     "type": "product",
     "product_name": "智能手表",
     "product_features": "防水,长续航"

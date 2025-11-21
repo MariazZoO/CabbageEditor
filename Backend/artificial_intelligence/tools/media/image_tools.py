@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from typing import List
 
 from langchain_core.tools import StructuredTool
@@ -8,6 +7,12 @@ from pydantic import BaseModel, Field
 
 from Backend.artificial_intelligence.config.ai_config import AIConfig, MediaToolConfig
 from Backend.artificial_intelligence.models.client_image import LingyaImageClient
+from Backend.artificial_intelligence.tools.response_adapter import (
+    build_part,
+    build_success_result,
+    build_error_result,
+)
+
 # from Backend.artificial_intelligence.storage import get_media_store
 
 
@@ -83,24 +88,35 @@ def load_image_tools(config: AIConfig) -> List[StructuredTool]:
             scene_url=scene_url,
         )
 
-        image_url, mime_type = client.generate(
-            prompt=data.prompt,
-            aspect_ratio=data.aspect_ratio,
-            store=None,
-            product_url=data.product_url,
-            scene_url=data.scene_url,
-        )
+        try:
+            image_url, mime_type = client.generate(
+                prompt=data.prompt,
+                aspect_ratio=data.aspect_ratio,
+                store=None,
+                product_url=data.product_url,
+                scene_url=data.scene_url,
+            )
 
-        # 返回图片URL（HTTP URL或data URI）
-        payload = {
-            "type": "image",
-            "prompt": data.prompt,
-            "source": provider.name,
-            "model": image_cfg.model,
-            "mime_type": mime_type,
-            "image_url": image_url,
-        }
-        return json.dumps(payload, ensure_ascii=False)
+            # 构建 part
+            part = build_part(
+                content_type="image",
+                content_text=data.prompt,
+                content_url=image_url,
+                parameter={
+                    "resolution": data.aspect_ratio,
+                    "text_type": "image_generation",
+                },
+            )
+
+            # 返回成功结果
+            return build_success_result(
+                parts=[part],
+            ).to_envelope(interface_type="image")
+
+        except Exception as e:
+            return build_error_result(error_message=str(e)).to_envelope(
+                interface_type="image"
+            )
 
     tool = StructuredTool(
         name="generate_image",

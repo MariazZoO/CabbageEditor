@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import json
 from pydantic import BaseModel, Field
 from langchain_core.tools import StructuredTool
 
@@ -12,6 +11,11 @@ from Backend.artificial_intelligence.config.ai_config import AIConfig
 from Backend.artificial_intelligence.models.client_speech import (
     create_speech_client,
     AudioConfig,
+)
+from Backend.artificial_intelligence.tools.response_adapter import (
+    build_part,
+    build_success_result,
+    build_error_result,
 )
 
 
@@ -35,12 +39,8 @@ class SpeechInput(BaseModel):
         default="mp3", description="音频格式，可选：mp3、wav、ogg_opus、pcm"
     )
     rate: int = Field(default=24000, description="采样率，可选：8000、16000、24000")
-    max_wait_seconds: int = Field(
-        default=60, description="最大等待时间（秒）"
-    )
-    poll_interval: float = Field(
-        default=2.0, description="轮询间隔（秒）"
-    )
+    max_wait_seconds: int = Field(default=60, description="最大等待时间（秒）")
+    poll_interval: float = Field(default=2.0, description="轮询间隔（秒）")
 
 
 def load_speech_tools(config: AIConfig):
@@ -104,40 +104,24 @@ def load_speech_tools(config: AIConfig):
         try:
             # 验证输入
             if not text or not text.strip():
-                return json.dumps(
-                    {"type": "tts", "status": "error", "error": "文本内容不能为空"},
-                    ensure_ascii=False,
+                return build_error_result(error_message="文本内容不能为空").to_envelope(
+                    interface_type="speech"
                 )
 
             if len(text) > 1000:
-                return json.dumps(
-                    {
-                        "type": "tts",
-                        "status": "error",
-                        "error": "文本长度超过1000字符，请分段合成",
-                    },
-                    ensure_ascii=False,
-                )
+                return build_error_result(
+                    error_message="文本长度超过1000字符，请分段合成"
+                ).to_envelope(interface_type="speech")
 
             if not (0.1 <= speed_ratio <= 2.0):
-                return json.dumps(
-                    {
-                        "type": "tts",
-                        "status": "error",
-                        "error": "语速比例应在 0.1 到 2.0 之间",
-                    },
-                    ensure_ascii=False,
-                )
+                return build_error_result(
+                    error_message="语速比例应在 0.1 到 2.0 之间"
+                ).to_envelope(interface_type="speech")
 
             if not (0.5 <= loudness_ratio <= 2.0):
-                return json.dumps(
-                    {
-                        "type": "tts",
-                        "status": "error",
-                        "error": "音量比例应在 0.5 到 2.0 之间",
-                    },
-                    ensure_ascii=False,
-                )
+                return build_error_result(
+                    error_message="音量比例应在 0.5 到 2.0 之间"
+                ).to_envelope(interface_type="speech")
 
             # 配置音频参数
             audio_config = AudioConfig(
@@ -156,27 +140,26 @@ def load_speech_tools(config: AIConfig):
                 poll_interval=poll_interval,
             )
 
-            return json.dumps(
-                {
-                    "type": "tts",
-                    "status": "success",
-                    "task_id": result.get("task_id"),
-                    "audio_url": result.get("audio_url"),
+            # 构建 part
+            part = build_part(
+                content_type="audio",
+                content_text=text,
+                content_url=result.get("audio_url"),
+                url_expire_time=result.get("url_expire_time"),
+                parameter={
                     "duration": result.get("duration"),
-                    "req_text_length": result.get("req_text_length"),
-                    "url_expire_time": result.get("url_expire_time"),
-                    "encoding": encoding,
-                    "voice_type": voice_type,
-                    "speed_ratio": speed_ratio,
-                    "loudness_ratio": loudness_ratio,
+                    "speech_type": voice_type,
                 },
-                ensure_ascii=False,
             )
 
+            # 返回成功结果
+            return build_success_result(
+                parts=[part],
+            ).to_envelope(interface_type="speech")
+
         except Exception as e:
-            return json.dumps(
-                {"type": "tts", "status": "error", "error": str(e)},
-                ensure_ascii=False,
+            return build_error_result(error_message=str(e)).to_envelope(
+                interface_type="speech"
             )
 
     # 创建结构化工具

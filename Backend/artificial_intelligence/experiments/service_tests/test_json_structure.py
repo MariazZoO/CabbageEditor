@@ -66,7 +66,26 @@ class TestServiceJsonStructure(unittest.TestCase):
     def test_text_generation_structure(self, mock_get_config, mock_load_tools):
         # Setup Mock
         mock_tool = MagicMock()
-        mock_tool.func.return_value = "Generated Text Content"
+        mock_tool.func.return_value = json.dumps({
+            "session_id": "test_sid",
+            "error_code": 0,
+            "status_info": "success",
+            "llm_content": [
+                {
+                    "role": "tool",
+                    "interface_type": "text",
+                    "sent_time_stamp": 123,
+                    "part": [
+                        {
+                            "content_type": "text",
+                            "content_text": "Generated Text Content",
+                            "parameter": {"text_type": "product"}
+                        }
+                    ]
+                }
+            ],
+            "metadata": {}
+        })
         mock_tool.name = "generate_product_text"
         mock_load_tools.return_value = [mock_tool]
 
@@ -92,13 +111,26 @@ class TestServiceJsonStructure(unittest.TestCase):
     @patch("Backend.artificial_intelligence.service.image.get_ai_config")
     def test_image_generation_structure(self, mock_get_config, mock_load_tools):
         mock_tool = MagicMock()
-        mock_tool.func.return_value = json.dumps(
-            {
-                "image_url": "http://example.com/img.png",
-                "resolution": "1024x1024",
-                "prompt": "A cat",
-            }
-        )
+        mock_tool.func.return_value = json.dumps({
+            "session_id": "test_sid",
+            "error_code": 0,
+            "status_info": "success",
+            "llm_content": [
+                {
+                    "role": "tool",
+                    "interface_type": "image",
+                    "sent_time_stamp": 123,
+                    "part": [
+                        {
+                            "content_type": "image",
+                            "content_url": "http://example.com/img.png",
+                            "parameter": {"resolution": "1024x1024", "prompt": "A cat"}
+                        }
+                    ]
+                }
+            ],
+            "metadata": {}
+        })
         mock_load_tools.return_value = [mock_tool]
 
         payload = {
@@ -123,15 +155,31 @@ class TestServiceJsonStructure(unittest.TestCase):
     @patch("Backend.artificial_intelligence.service.video.get_ai_config")
     def test_video_generation_structure(self, mock_get_config, mock_load_tools):
         mock_tool = MagicMock()
-        mock_tool.func.return_value = json.dumps(
-            {
-                "video_url": "http://example.com/vid.mp4",
-                "resolution": "720P",
-                "duration": 5,
-                "status": "succeeded",
-                "task_id": "hidden_id",  # 应该被过滤掉
-            }
-        )
+        mock_tool.func.return_value = json.dumps({
+            "session_id": "test_sid",
+            "error_code": 0,
+            "status_info": "success",
+            "llm_content": [
+                {
+                    "role": "tool",
+                    "interface_type": "video",
+                    "sent_time_stamp": 123,
+                    "part": [
+                        {
+                            "content_type": "video",
+                            "content_url": "http://example.com/vid.mp4",
+                            "parameter": {
+                                "resolution": "720P",
+                                "duration": 5,
+                                "status": "succeeded",
+                                "task_id": "hidden_id"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "metadata": {}
+        })
         mock_load_tools.return_value = [mock_tool]
 
         payload = {
@@ -160,14 +208,30 @@ class TestServiceJsonStructure(unittest.TestCase):
     @patch("Backend.artificial_intelligence.service.music.get_ai_config")
     def test_music_generation_structure(self, mock_get_config, mock_load_tools):
         mock_tool = MagicMock()
-        mock_tool.func.return_value = json.dumps(
-            {
-                "audio_list": ["http://example.com/music.mp3"],
-                "duration": 30,
-                "style": "Jazz",
-                "model": "V5",  # 应该被过滤
-            }
-        )
+        mock_tool.func.return_value = json.dumps({
+            "session_id": "test_sid",
+            "error_code": 0,
+            "status_info": "success",
+            "llm_content": [
+                {
+                    "role": "tool",
+                    "interface_type": "music",
+                    "sent_time_stamp": 123,
+                    "part": [
+                        {
+                            "content_type": "audio",
+                            "content_url": "http://example.com/music.mp3",
+                            "parameter": {
+                                "duration": 30,
+                                "music_style": "Jazz",
+                                "model": "V5"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "metadata": {}
+        })
         mock_load_tools.return_value = [mock_tool]
 
         payload = {
@@ -194,14 +258,30 @@ class TestServiceJsonStructure(unittest.TestCase):
     @patch("Backend.artificial_intelligence.service.speech.get_ai_config")
     def test_speech_generation_structure(self, mock_get_config, mock_load_tools):
         mock_tool = MagicMock()
-        mock_tool.func.return_value = json.dumps(
-            {
-                "audio_url": "http://example.com/speech.mp3",
-                "duration": 10,
-                "voice_type": "female",
-                "encoding": "mp3",  # 应该被过滤
-            }
-        )
+        mock_tool.func.return_value = json.dumps({
+            "session_id": "test_sid",
+            "error_code": 0,
+            "status_info": "success",
+            "llm_content": [
+                {
+                    "role": "tool",
+                    "interface_type": "speech",
+                    "sent_time_stamp": 123,
+                    "part": [
+                        {
+                            "content_type": "audio",
+                            "content_url": "http://example.com/speech.mp3",
+                            "parameter": {
+                                "duration": 10,
+                                "speech_type": "female",
+                                "encoding": "mp3"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "metadata": {}
+        })
         mock_load_tools.return_value = [mock_tool]
 
         payload = {

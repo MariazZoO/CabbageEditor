@@ -10,6 +10,8 @@ from datetime import datetime
 from http import HTTPStatus
 from pathlib import Path
 from typing import Any, Dict
+from functools import wraps
+import logging
 
 from dashscope import VideoSynthesis
 from PIL import Image
@@ -429,10 +431,53 @@ def download_video(
         raise RuntimeError(f"视频下载失败: {e}") from e
 
 
+# ========== 通用工具 ==========
+
+
+def retry_operation(
+    max_retries: int = 3,
+    delay: float = 1.0,
+    backoff: float = 2.0,
+    exceptions: tuple = (Exception,),
+):
+    """
+    简单的重试装饰器
+
+    参数:
+    - max_retries: 最大重试次数
+    - delay: 初始延迟时间（秒）
+    - backoff: 延迟倍数
+    - exceptions: 需要捕获的异常类型
+    """
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            retries = 0
+            current_delay = delay
+            while True:
+                try:
+                    return func(*args, **kwargs)
+                except exceptions as e:
+                    retries += 1
+                    if retries > max_retries:
+                        raise e
+                    logging.getLogger(__name__).warning(
+                        f"操作失败，正在重试 ({retries}/{max_retries}): {e}"
+                    )
+                    time.sleep(current_delay)
+                    current_delay *= backoff
+
+        return wrapper
+
+    return decorator
+
+
 __all__ = [
     "resize_image_with_constraints",
     "prepare_image_url",
     "resolve_image_url",
     "TaskPoller",
     "download_video",
+    "retry_operation",
 ]

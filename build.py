@@ -23,8 +23,6 @@ import subprocess
 from pathlib import Path
 from typing import List, Optional
 
-import config
-
 ROOT = Path(__file__).resolve().parent
 REQUIREMENTS = ROOT / "requirements.txt"
 FRONTEND_DIR = ROOT / "Frontend"
@@ -128,57 +126,57 @@ You may retry or run: {sys.executable} -m pip install -r {requirements_file}"
 
 
 def clone_inner_agent_workflow(repo_url: str, target_dir: Path) -> None:
-	"""Clone the InnerAgent workflow repository if InnerAgentWorkFlow is enabled."""
-	_print_header("Step 1.5: Cloning InnerAgent Workflow Repository")
+    """Clone the InnerAgent workflow repository if InnerAgentWorkFlow is enabled."""
+    _print_header("Step 1.5: Cloning InnerAgent Workflow Repository")
 
-	# Check if git is available
-	try:
-		result = subprocess.run(
-			["git", "--version"],
-			capture_output=True,
-			text=True,
-			check=False
-		)
-		if result.returncode != 0:
-			print("ERROR: git is not installed or not in PATH. Please install git first.")
-			sys.exit(1)
-	except FileNotFoundError:
-		print("ERROR: git is not installed or not in PATH. Please install git first.")
-		sys.exit(1)
+    # Check if git is available
+    try:
+        result = subprocess.run(
+            ["git", "--version"],
+            capture_output=True,
+            text=True,
+            check=False
+        )
+        if result.returncode != 0:
+            print("ERROR: git is not installed or not in PATH. Please install git first.")
+            sys.exit(1)
+    except FileNotFoundError:
+        print("ERROR: git is not installed or not in PATH. Please install git first.")
+        sys.exit(1)
 
-	# Check if target directory already exists
-	if target_dir.exists():
-		print(f"Target directory already exists: {target_dir}")
-		# Check if it's a git repository
-		if (target_dir / ".git").exists():
-			print("Directory is already a git repository. Pulling latest changes...")
-			rc = _run(["git", "pull"], cwd=target_dir)
-			if rc != 0:
-				print("WARNING: 'git pull' failed. Continuing anyway...")
-			else:
-				print("Successfully updated repository.")
-		else:
-			print("WARNING: Directory exists but is not a git repository. Skipping clone.")
-		return
+    # Check if target directory already exists
+    if target_dir.exists():
+        print(f"Target directory already exists: {target_dir}")
+        # Check if it's a git repository
+        if (target_dir / ".git").exists():
+            print("Directory is already a git repository. Pulling latest changes...")
+            rc = _run(["git", "pull"], cwd=target_dir)
+            if rc != 0:
+                print("WARNING: 'git pull' failed. Continuing anyway...")
+            else:
+                print("Successfully updated repository.")
+        else:
+            print("WARNING: Directory exists but is not a git repository. Skipping clone.")
+        return
 
-	# Create parent directory if needed
-	target_dir.parent.mkdir(parents=True, exist_ok=True)
+    # Create parent directory if needed
+    target_dir.parent.mkdir(parents=True, exist_ok=True)
 
-	# Clone the repository
-	print(f"Cloning from {repo_url} to {target_dir}...")
-	rc = _run(["git", "clone", repo_url, str(target_dir)])
-	if rc != 0:
-		print(f"ERROR: Failed to clone repository from {repo_url}")
-		sys.exit(rc)
+    # Clone the repository
+    print(f"Cloning from {repo_url} to {target_dir}...")
+    rc = _run(["git", "clone", repo_url, str(target_dir)])
+    if rc != 0:
+        print(f"ERROR: Failed to clone repository from {repo_url}")
+        sys.exit(rc)
 
-	print(f"Successfully cloned InnerAgent workflow to {target_dir}")
+    print(f"Successfully cloned InnerAgent workflow to {target_dir}")
 
 
 def build_frontend(frontend_dir: Path = FRONTEND_DIR, node_dir: Path = NODE_DIR, npm_cmd: Path = NPM_CMD) -> None:
-	_print_header("Step 2: Installing and building Frontend with bundled Node/npm")
-	if not frontend_dir.exists():
-		print(f"ERROR: Frontend directory not found: {frontend_dir}")
-		sys.exit(1)
+    _print_header("Step 2: Installing and building Frontend with bundled Node/npm")
+    if not frontend_dir.exists():
+        print(f"ERROR: Frontend directory not found: {frontend_dir}")
+        sys.exit(1)
 
     if os.name == "nt":
         # Prefer the local npm.cmd
@@ -217,24 +215,24 @@ def build_frontend(frontend_dir: Path = FRONTEND_DIR, node_dir: Path = NODE_DIR,
 
 
 def main() -> None:
-	# Load configuration
-	from config.app_config import get_app_config
-	cfg = get_app_config()
+    # Load configuration
+    from config.app_config import get_app_config
+    cfg = get_app_config()
 
-	# Step 1: Ensure Python requirements
-	ensure_python_requirements(REQUIREMENTS)
+    # Step 1: Ensure Python requirements
+    ensure_python_requirements(REQUIREMENTS)
 
-	# Step 1.5: Clone InnerAgent workflow if enabled
-	if cfg.runtime.InnerAgentWorkFlow:
-		repo_url = cfg.runtime.InnerAgentRepoUrl
-		target_dir = ROOT / cfg.runtime.InnerAgentTargetDir
-		clone_inner_agent_workflow(repo_url, target_dir)
+    # Step 1.5: Clone InnerAgent workflow if enabled
+    if cfg.runtime.InnerAgentWorkFlow:
+        repo_url = cfg.runtime.InnerAgentRepoUrl
+        target_dir = ROOT / cfg.runtime.InnerAgentTargetDir
+        clone_inner_agent_workflow(repo_url, target_dir)
 
-	# Step 2: Build frontend
-	build_frontend(FRONTEND_DIR, NODE_DIR, NPM_CMD)
+    # Step 2: Build frontend
+    build_frontend(FRONTEND_DIR, NODE_DIR, NPM_CMD)
 
-	_print_header("Done")
-	print("All steps finished successfully.")
+    _print_header("Done")
+    print("All steps finished successfully.")
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import httpx
 
 from Backend.artificial_intelligence.config.ai_config import ProviderConfig
+from Backend.artificial_intelligence.models.video_utils import retry_operation
 # from Backend.artificial_intelligence.storage import AUTOSAVE_URL_SCHEME
 
 
@@ -52,6 +53,7 @@ class LingyaImageClient:
             return self._generate_with_images(prompt=prompt, images=images_data)
         return self._generate_from_text(prompt=prompt, aspect_ratio=aspect_ratio)
 
+    @retry_operation(max_retries=3)
     def _generate_from_text(self, *, prompt: str, aspect_ratio: str) -> Tuple[str, str]:
         payload = {
             "model": self.model,
@@ -68,6 +70,7 @@ class LingyaImageClient:
         response.raise_for_status()
         return self._parse_response(response.json())
 
+    @retry_operation(max_retries=3)
     def _generate_with_images(
         self, *, prompt: str, images: List[str]
     ) -> Tuple[str, str]:
@@ -132,40 +135,40 @@ class LingyaImageClient:
         return images
 
 
-def _load_image_as_data_uri(store, source: str) -> Optional[str]:
-    """将本地图片转换为data URI格式"""
-    if not source:
-        return None
-    path = _path_from_source(store, source)
-    if not path or not path.exists():
-        return None
+# def _load_image_as_data_uri(store, source: str) -> Optional[str]:
+#     """将本地图片转换为data URI格式"""
+#     if not source:
+#         return None
+#     path = _path_from_source(store, source)
+#     if not path or not path.exists():
+#         return None
 
-    # 读取图片并转换为data URI
-    image_bytes = path.read_bytes()
-    b64_data = base64.b64encode(image_bytes).decode("utf-8")
+#     # 读取图片并转换为data URI
+#     image_bytes = path.read_bytes()
+#     b64_data = base64.b64encode(image_bytes).decode("utf-8")
 
-    # 根据文件扩展名确定MIME类型
-    suffix = path.suffix.lower()
-    mime_map = {
-        ".png": "image/png",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".gif": "image/gif",
-        ".webp": "image/webp",
-    }
-    mime_type = mime_map.get(suffix, "image/png")
+#     # 根据文件扩展名确定MIME类型
+#     suffix = path.suffix.lower()
+#     mime_map = {
+#         ".png": "image/png",
+#         ".jpg": "image/jpeg",
+#         ".jpeg": "image/jpeg",
+#         ".gif": "image/gif",
+#         ".webp": "image/webp",
+#     }
+#     mime_type = mime_map.get(suffix, "image/png")
 
-    return f"data:{mime_type};base64,{b64_data}"
+#     return f"data:{mime_type};base64,{b64_data}"
 
 
-def _path_from_source(store, source: str):  # 返回 Path 或 None
-    if source.startswith(AUTOSAVE_URL_SCHEME):
-        stored = store.resolve_url(source)
-        return stored.path if stored else None
-    from pathlib import Path
+# def _path_from_source(store, source: str):  # 返回 Path 或 None
+#     if source.startswith(AUTOSAVE_URL_SCHEME):
+#         stored = store.resolve_url(source)
+#         return stored.path if stored else None
+#     from pathlib import Path
 
-    candidate = Path(source)
-    return candidate if candidate.exists() else None
+#     candidate = Path(source)
+#     return candidate if candidate.exists() else None
 
 
 __all__ = ["LingyaImageClient"]

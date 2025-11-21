@@ -2,6 +2,10 @@
 服务入口薄层：转发到 Backend.artificial_intelligence.service.* 各子模块。
 """
 
+"""
+服务入口薄层：转发到 Backend.artificial_intelligence.service.* 各子模块。
+"""
+
 from __future__ import annotations
 
 import pathlib
@@ -14,15 +18,15 @@ except Exception:
     pass
 
 from Backend.artificial_intelligence.service import (  # noqa: E402
+    chat,
     image,
-    integrated,
     music,
     speech,
     text,
     video,
 )
 
-handle_integrated_entrance = integrated.handle_integrated_entrance
+handle_integrated_entrance = chat.handle_integrated_entrance
 handle_image_generation = image.handle_image_generation
 handle_video_generation = video.handle_video_generation
 handle_text_generation = text.handle_text_generation

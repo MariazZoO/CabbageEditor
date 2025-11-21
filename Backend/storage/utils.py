@@ -7,19 +7,26 @@ import re
 import uuid
 from pathlib import Path
 from threading import RLock
-from typing import Optional, Union
+from typing import Optional, Union, TYPE_CHECKING
 
 from config.app_config import get_app_config as get_global_app_config
-from .models import StoredImage, StoredVideo, StoredAudio
+
+# autosave 协议前缀（保持本文件内定义，避免额外模块导入）
+AUTOSAVE_URL_SCHEME = "autosave://"
+
+# 仅做类型提示，避免循环导入
+if TYPE_CHECKING:
+    from .models import StoredImage, StoredVideo, StoredAudio
 
 # URL 协议
-AUTOSAVE_URL_SCHEME = "autosave://"
 
 
 def resolve_autosave_url(
     root: Path, url: str
-) -> Union[StoredImage, StoredVideo, StoredAudio, None]:
+) -> Union["StoredImage", "StoredVideo", "StoredAudio", None]:
     """解析 autosave:// URL 并返回对应的媒体元数据"""
+    from .models import StoredImage, StoredVideo, StoredAudio
+
     if not url or not url.startswith(AUTOSAVE_URL_SCHEME):
         return None
 

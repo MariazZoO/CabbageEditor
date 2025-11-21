@@ -7,26 +7,47 @@ from Backend.artificial_intelligence.config.ai_config import get_ai_config
 
 from Backend.artificial_intelligence.service.common import (
     ensure_dict,
-    make_error,
-    make_response,
-    require_fields,
+    build_error_response,
+    build_success_response,
     session_context,
+    extract_parameter,
 )
 
 
-def handle_video_generation(payload: Any) -> str:
-    """
-    处理独立的视频生成请求（图生视频）。
-    """
-    request_data: Dict[str, Any] = ensure_dict(payload)
-    try:
-        require_fields(request_data, ["prompt", "image_url"])
+def _extract_prompt_and_image(request_data: Dict[str, Any]) -> Dict[str, str]:
+    llm_content = request_data.get("llm_content", [])
+    prompt = ""
+    image_url = ""
+    if isinstance(llm_content, list) and llm_content:
+        parts = llm_content[0].get("part", [])
+        prompt_parts = [
+            p.get("content_text", "") for p in parts if p.get("content_type") == "text"
+        ]
+        image_parts = [
+            p.get("content_url", "") for p in parts if p.get("content_type") == "image"
+        ]
+        if prompt_parts:
+            prompt = " ".join(prompt_parts).strip()
+        if image_parts:
+            image_url = image_parts[0]
+    return {"prompt": prompt, "image_url": image_url}
 
-        prompt = request_data.get("prompt")
-        image_url = request_data.get("image_url")
-        session_id = request_data.get("session_id")
-        resolution = request_data.get("resolution", "720P")
-        prompt_extend = request_data.get("prompt_extend", True)
+
+def handle_video_generation(payload: Any) -> str:
+    """视频生成三层结构。"""
+    request_data: Dict[str, Any] = ensure_dict(payload)
+    session_id = request_data.get("session_id") or "default"
+    metadata = request_data.get("metadata", {})
+    try:
+        extracted = _extract_prompt_and_image(request_data)
+        prompt = extracted["prompt"]
+        image_url = extracted["image_url"]
+
+        if not prompt or not image_url:
+            raise ValueError("缺少 prompt 或 image_url")
+
+        resolution = extract_parameter(request_data, "resolution", "720P")
+        prompt_extend = extract_parameter(request_data, "prompt_extend", True)
 
         cfg = get_ai_config()
         from Backend.artificial_intelligence.tools.media.video_tools import (
@@ -36,9 +57,7 @@ def handle_video_generation(payload: Any) -> str:
         tools = load_video_tools(cfg)
         if not tools:
             raise RuntimeError("视频生成功能未启用或配置不完整")
-
         video_tool = tools[0]
-
         with session_context(session_id) as sid:
             result_json = video_tool.func(
                 prompt=prompt,
@@ -46,45 +65,60 @@ def handle_video_generation(payload: Any) -> str:
                 resolution=resolution,
                 prompt_extend=prompt_extend,
             )
+            session_id = sid
 
-        tool_result = json.loads(result_json)
-        status = (
-            "success"
-            if tool_result.get("status") == "succeeded"
-            else tool_result.get("status", "success")
+        # 解析 Tool 返回的 Envelope JSON
+        tool_envelope = json.loads(result_json)
+
+        # 检查错误
+        if tool_envelope.get("error_code", 0) != 0:
+            error_msg = tool_envelope.get("status_info", "未知错误")
+            raise RuntimeError(f"视频生成失败: {error_msg}")
+
+        # 提取 llm_content
+        llm_content = tool_envelope.get("llm_content", [])
+        if not llm_content:
+            raise RuntimeError("视频生成未返回有效内容")
+
+        # 提取并清洗 parts
+        original_parts = llm_content[0].get("part", [])
+        cleaned_parts = []
+        for part in original_parts:
+            cleaned_part = {
+                "content_type": part.get("content_type"),
+                "content_url": part.get("content_url"),
+                "content_text": part.get("content_text", ""),
+            }
+            # 严格过滤 parameter
+            if "parameter" in part:
+                original_param = part["parameter"]
+                cleaned_param = {}
+                if "resolution" in original_param:
+                    cleaned_param["resolution"] = original_param["resolution"]
+                if "duration" in original_param:
+                    cleaned_param["duration"] = original_param["duration"]
+                if cleaned_param:
+                    cleaned_part["parameter"] = cleaned_param
+
+            # 移除 None 值字段
+            cleaned_part = {k: v for k, v in cleaned_part.items() if v is not None}
+            cleaned_parts.append(cleaned_part)
+
+        if not cleaned_parts:
+            raise RuntimeError("视频生成未返回有效的视频部分")
+
+        return build_success_response(
+            interface_type="video",
+            session_id=session_id,
+            metadata=metadata,
+            parts=cleaned_parts,
         )
-
-        response_body = {
-            "prompt": tool_result.get("prompt", prompt),
-            "source": tool_result.get("source", ""),
-            "model": tool_result.get("model", ""),
-            "video_url": tool_result.get("video_url", ""),
-            "task_id": tool_result.get("task_id", ""),
-            "resolution": tool_result.get("resolution", resolution),
-        }
-
-        for optional_field in [
-            "orig_prompt",
-            "actual_prompt",
-            "usage",
-            "local_video",
-            "download_error",
-        ]:
-            if optional_field in tool_result:
-                response_body[optional_field] = tool_result[optional_field]
-
-        return make_response(
-            response_type="video_generation",
-            status=status,
-            session_id=sid,
-            **response_body,
-        )
-
     except Exception as exc:  # noqa: BLE001
-        return make_error(
-            "video_generation",
-            request_data.get("session_id"),
-            exc,
+        return build_error_response(
+            interface_type="video",
+            session_id=session_id,
+            metadata=metadata,
+            exc=exc,
         )
 
 

@@ -7,72 +7,112 @@ from Backend.artificial_intelligence.config.ai_config import get_ai_config
 
 from Backend.artificial_intelligence.service.common import (
     ensure_dict,
-    make_error,
-    make_response,
-    require_fields,
+    build_error_response,
+    build_success_response,
     session_context,
+    extract_parameter,
 )
 
 
+def _extract_text(request_data: Dict[str, Any]) -> str:
+    if "text" in request_data:
+        return request_data.get("text", "")
+    llm_content = request_data.get("llm_content")
+    if isinstance(llm_content, list) and llm_content:
+        parts = llm_content[0].get("part", [])
+        txt = "\n".join(
+            p.get("content_text", "") for p in parts if p.get("content_type") == "text"
+        ).strip()
+        return txt
+    return ""
+
+
 def handle_speech_generation(payload: Any) -> str:
-    """
-    处理独立的TTS语音合成请求。
-    """
+    """语音生成三层结构。"""
     request_data: Dict[str, Any] = ensure_dict(payload)
+    metadata = request_data.get("metadata", {})
+    session_id = request_data.get("session_id") or "default"
     try:
-        require_fields(request_data, ["text"])
-
-        session_id = request_data.get("session_id")
-        text = request_data.get("text")
-
+        text = _extract_text(request_data)
+        if not text:
+            raise ValueError("缺少待合成的文本")
         cfg = get_ai_config()
         from Backend.artificial_intelligence.tools.media.speech_tools import (
-            load_tts_tools,
+            load_speech_tools,
         )
 
-        tools = load_tts_tools(cfg)
+        tools = load_speech_tools(cfg)
         if not tools:
             raise RuntimeError("TTS语音合成功能未启用或配置不完整")
-
-        tts_tool = tools[0]
-
+        speech_tool = tools[0]
         tool_params = {
             "text": text,
-            "voice_type": request_data.get(
-                "voice_type", "zh_female_cancan_mars_bigtts"
+            "voice_type": extract_parameter(
+                request_data, "voice_type", "zh_female_cancan_mars_bigtts"
             ),
-            "speed_ratio": request_data.get("speed_ratio", 1.0),
-            "loudness_ratio": request_data.get("loudness_ratio", 1.0),
-            "encoding": request_data.get("encoding", "mp3"),
-            "rate": request_data.get("rate", 24000),
-            "max_wait_seconds": request_data.get("max_wait_seconds", 60),
-            "poll_interval": request_data.get("poll_interval", 2.0),
+            "speed_ratio": extract_parameter(request_data, "speed_ratio", 1.0),
+            "loudness_ratio": extract_parameter(request_data, "loudness_ratio", 1.0),
+            "encoding": extract_parameter(request_data, "encoding", "mp3"),
+            "rate": extract_parameter(request_data, "rate", 24000),
+            "max_wait_seconds": extract_parameter(request_data, "max_wait_seconds", 60),
+            "poll_interval": extract_parameter(request_data, "poll_interval", 2.0),
         }
-
         with session_context(session_id) as sid:
-            result_json = tts_tool.func(**tool_params)
+            result_json = speech_tool.func(**tool_params)
+            session_id = sid
 
-        tool_result = json.loads(result_json)
+        # 解析 Tool 返回的 Envelope JSON
+        tool_envelope = json.loads(result_json)
 
-        return make_response(
-            response_type="tts_generation",
-            status=tool_result.get("status", "success"),
-            session_id=sid,
-            task_id=tool_result.get("task_id"),
-            audio_url=tool_result.get("audio_url"),
-            duration=tool_result.get("duration"),
-            req_text_length=tool_result.get("req_text_length"),
-            url_expire_time=tool_result.get("url_expire_time"),
-            encoding=tool_result.get("encoding"),
-            voice_type=tool_result.get("voice_type"),
-            error=tool_result.get("error"),
+        # 检查错误
+        if tool_envelope.get("error_code", 0) != 0:
+            error_msg = tool_envelope.get("status_info", "未知错误")
+            raise RuntimeError(f"语音合成失败: {error_msg}")
+
+        # 提取 llm_content
+        llm_content = tool_envelope.get("llm_content", [])
+        if not llm_content:
+            raise RuntimeError("语音合成未返回有效内容")
+
+        # 提取并清洗 parts
+        original_parts = llm_content[0].get("part", [])
+        cleaned_parts = []
+        for part in original_parts:
+            cleaned_part = {
+                "content_type": part.get("content_type"),
+                "content_url": part.get("content_url"),
+                "content_text": part.get("content_text", ""),
+            }
+            # 严格过滤 parameter
+            if "parameter" in part:
+                original_param = part["parameter"]
+                cleaned_param = {}
+                if "speech_type" in original_param:
+                    cleaned_param["speech_type"] = original_param["speech_type"]
+                if "duration" in original_param:
+                    cleaned_param["duration"] = original_param["duration"]
+                if cleaned_param:
+                    cleaned_part["parameter"] = cleaned_param
+
+            # 移除 None 值字段
+            cleaned_part = {k: v for k, v in cleaned_part.items() if v is not None}
+            cleaned_parts.append(cleaned_part)
+
+        if not cleaned_parts:
+            raise RuntimeError("语音合成未返回有效的音频部分")
+
+        return build_success_response(
+            interface_type="speech",
+            session_id=session_id,
+            metadata=metadata,
+            parts=cleaned_parts,
         )
-
     except Exception as exc:  # noqa: BLE001
-        return make_error(
-            "tts_generation",
-            request_data.get("session_id"),
-            exc,
+        return build_error_response(
+            interface_type="speech",
+            session_id=session_id,
+            metadata=metadata,
+            exc=exc,
         )
 
 

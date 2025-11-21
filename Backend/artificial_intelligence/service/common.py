@@ -44,31 +44,111 @@ def pick_tool(tools: List[Any], names: Iterable[str]) -> Any:
     raise RuntimeError(f"未找到匹配的工具: {', '.join(names)}")
 
 
-def make_response(
-    response_type: str,
-    status: str = "success",
-    session_id: Optional[str] = None,
-    **kwargs: Any,
+def extract_parameter(
+    request_data: Dict[str, Any], param_name: str, default: Any = None
+) -> Any:
+    """从 request_data 或 llm_content 中提取参数。
+
+    优先级：
+    1. request_data 顶层字段
+    2. llm_content[0]["part"][...]["parameter"] 中的字段 (标准格式)
+    """
+    # 1. Try top-level
+    if param_name in request_data:
+        return request_data[param_name]
+
+    llm_content = request_data.get("llm_content")
+    if isinstance(llm_content, list) and llm_content:
+        first = llm_content[0]
+
+        # 2. Try llm_content[0]["part"][...]["parameter"]
+        parts = first.get("part", [])
+        if isinstance(parts, list):
+            for part in parts:
+                part_params = part.get("parameter", {})
+                if isinstance(part_params, dict) and param_name in part_params:
+                    return part_params[param_name]
+
+    return default
+
+
+def build_success_response(
+    interface_type: str,
+    session_id: str,
+    metadata: Dict[str, Any] | None = None,
+    parts: List[Dict[str, Any]] | None = None,
+    role: str = "assistant",
+    llm_content: List[Dict[str, Any]] | None = None,
 ) -> str:
-    """构造统一的 JSON 响应。"""
+    """构造成功响应结构。
+
+    顶层: session_id, error_code(0), status_info("ok"), llm_content(list), metadata(dict)
+    第二层: role, interface_type, sent_time_stamp(int), part(list)
+    第三层: part 元素包含 content_type / content_text|content_url / 可选 parameter(dict)
+    """
+    if llm_content is None:
+        if parts is None:
+            parts = []
+        llm_content = [
+            {
+                "role": role,
+                "interface_type": interface_type,
+                "sent_time_stamp": int(time.time()),
+                "part": parts,
+            }
+        ]
+
     body: Dict[str, Any] = {
-        "type": response_type,
-        "status": status,
-        "timestamp": int(time.time()),
-        "session_id": session_id or default_session_id(),
+        "session_id": session_id,
+        "error_code": 0,
+        "status_info": "ok",
+        "llm_content": llm_content,
+        "metadata": metadata or {},
     }
-    body.update(kwargs)
     return json.dumps(body, ensure_ascii=False)
 
 
-def make_error(response_type: str, session_id: Optional[str], exc: Exception) -> str:
-    """构造统一的错误响应。"""
-    return make_response(
-        response_type=response_type,
-        status="error",
-        session_id=session_id,
-        content=str(exc),
-    )
+def build_error_response(
+    interface_type: str,
+    session_id: str | None,
+    exc: Exception,
+    metadata: Dict[str, Any] | None = None,
+    role: str = "assistant",
+) -> str:
+    """构造错误响应结构。
+
+    错误响应也应该符合三层结构：
+    - 顶层: error_code=1, status_info=错误信息
+    - 第二层: llm_content 包含一个表示错误的消息
+    - 第三层: part 包含错误详情的文本
+    """
+    error_message = str(exc)
+    exception_type = type(exc).__name__
+
+    body: Dict[str, Any] = {
+        "session_id": session_id or default_session_id(),
+        "error_code": 1,
+        "status_info": error_message,
+        "llm_content": [
+            {
+                "role": role,
+                "interface_type": interface_type,
+                "sent_time_stamp": int(time.time()),
+                "part": [
+                    {
+                        "content_type": "text",
+                        "content_text": error_message,
+                        "parameter": {
+                            "error": True,
+                            "exception_type": exception_type,
+                        },
+                    }
+                ],
+            }
+        ],
+        "metadata": metadata or {},
+    }
+    return json.dumps(body, ensure_ascii=False)
 
 
 __all__ = [
@@ -76,6 +156,7 @@ __all__ = [
     "require_fields",
     "session_context",
     "pick_tool",
-    "make_response",
-    "make_error",
+    "extract_parameter",
+    "build_success_response",
+    "build_error_response",
 ]

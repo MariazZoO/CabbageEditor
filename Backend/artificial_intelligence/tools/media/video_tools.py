@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 from typing import List
 
@@ -18,6 +17,12 @@ from Backend.artificial_intelligence.models.video_utils import (
     resolve_image_url,
     resize_image_with_constraints,
 )
+from Backend.artificial_intelligence.tools.response_adapter import (
+    build_part,
+    build_success_result,
+    build_error_result,
+)
+
 # from Backend.artificial_intelligence.storage import get_media_store
 
 
@@ -109,26 +114,16 @@ def load_video_tools(config: AIConfig) -> List[StructuredTool]:
         # 验证分辨率参数
         valid_resolutions = {"480P", "720P", "1080P"}
         if data.resolution not in valid_resolutions:
-            return json.dumps(
-                {
-                    "type": "video_generation",
-                    "status": "failed",
-                    "error": f"无效的分辨率: {data.resolution}，支持的值: {', '.join(valid_resolutions)}",
-                },
-                ensure_ascii=False,
-            )
+            return build_error_result(
+                error_message=f"无效的分辨率: {data.resolution}，支持的值: {', '.join(valid_resolutions)}"
+            ).to_envelope(interface_type="video")
 
         # 准备图片 URL
         image_url = resolve_image_url(data.image_url, None)
         if not image_url:
-            return json.dumps(
-                {
-                    "type": "video_generation",
-                    "status": "failed",
-                    "error": f"无法加载图片：{data.image_url}",
-                },
-                ensure_ascii=False,
-            )
+            return build_error_result(
+                error_message=f"无法加载图片：{data.image_url}"
+            ).to_envelope(interface_type="video")
 
         # 如果是本地文件，尝试压缩以避免上传超时
         if image_url.startswith("file://"):
@@ -156,42 +151,27 @@ def load_video_tools(config: AIConfig) -> List[StructuredTool]:
                 poll_interval=5.0,
             )
 
-            # 构建响应数据
-            payload = {
-                "type": "video_generation",
-                "status": "succeeded",
-                "prompt": data.prompt,
-                "source": provider.name,
-                "model": client.model,
-                "video_url": result.get("output", {}).get("video_url"),
-                "task_id": result.get("task_id"),
-                "resolution": data.resolution,
-            }
+            # 构建 part
+            part = build_part(
+                content_type="video",
+                content_text=data.prompt,
+                content_url=result.get("output", {}).get("video_url"),
+                parameter={
+                    "resolution": data.resolution,
+                },
+            )
 
-            # 添加可选字段
-            output = result.get("output", {})
-            if "orig_prompt" in output:
-                payload["orig_prompt"] = output["orig_prompt"]
-            if "actual_prompt" in output:
-                payload["actual_prompt"] = output["actual_prompt"]
-            if "usage" in result:
-                payload["usage"] = result["usage"]
-
-            return json.dumps(payload, ensure_ascii=False)
+            # 返回成功结果
+            return build_success_result(
+                parts=[part],
+            ).to_envelope(interface_type="video")
 
         except Exception as e:
             import logging
 
-            logging.getLogger(__name__).error(
-                f"视频生成失败: {e}", exc_info=True
-            )
-            return json.dumps(
-                {
-                    "type": "video_generation",
-                    "status": "failed",
-                    "error": str(e),
-                },
-                ensure_ascii=False,
+            logging.getLogger(__name__).error(f"视频生成失败: {e}", exc_info=True)
+            return build_error_result(error_message=str(e)).to_envelope(
+                interface_type="video"
             )
 
     tool = StructuredTool(

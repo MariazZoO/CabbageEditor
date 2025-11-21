@@ -232,11 +232,6 @@ def load_music_tools(config: AIConfig):
             )
             return build_success_result(
                 parts=[part],
-                metadata={
-                    "task_id": task_id,
-                    "status": "submitted",
-                    "model": data.model,
-                },
             ).to_envelope(interface_type="music")
 
         # 轮询任务状态
@@ -257,7 +252,7 @@ def load_music_tools(config: AIConfig):
                 # CREATE_TASK_FAILED, GENERATE_AUDIO_FAILED, CALLBACK_EXCEPTION, SENSITIVE_WORD_ERROR
                 if status in {
                     "SUCCESS",
-                    "FIRST_SUCCESS",
+                    # "FIRST_SUCCESS",  # 等待所有音频生成完成，不提前返回
                     "CREATE_TASK_FAILED",
                     "GENERATE_AUDIO_FAILED",
                     "CALLBACK_EXCEPTION",
@@ -312,10 +307,6 @@ def load_music_tools(config: AIConfig):
 
                 return build_success_result(
                     parts=parts,
-                    metadata={
-                        "model": data.model,
-                        "task_id": task_id,
-                    },
                 ).to_envelope(interface_type="music")
             else:
                 return build_error_result(

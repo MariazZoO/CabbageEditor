@@ -111,10 +111,6 @@ def load_image_tools(config: AIConfig) -> List[StructuredTool]:
             # 返回成功结果
             return build_success_result(
                 parts=[part],
-                metadata={
-                    "model": image_cfg.model,
-                    "provider": provider.name,
-                },
             ).to_envelope(interface_type="image")
 
         except Exception as e:

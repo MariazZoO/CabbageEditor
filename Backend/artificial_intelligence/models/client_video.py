@@ -11,7 +11,7 @@ from dashscope import VideoSynthesis
 import dashscope
 
 from Backend.artificial_intelligence.config.ai_config import ProviderConfig
-from Backend.artificial_intelligence.models.video_utils import TaskPoller
+from Backend.artificial_intelligence.models.video_utils import TaskPoller, retry_operation
 
 
 class DashScopeVideoClient:
@@ -50,6 +50,7 @@ class DashScopeVideoClient:
         else:
             dashscope.base_http_api_url = "https://dashscope.aliyuncs.com/api/v1"
 
+    @retry_operation(max_retries=3)
     def generate_video_from_image(
         self,
         *,

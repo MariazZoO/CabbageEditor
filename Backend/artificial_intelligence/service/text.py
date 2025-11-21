@@ -12,6 +12,7 @@ from Backend.artificial_intelligence.service.common import (
     build_success_response,
     pick_tool,
     session_context,
+    extract_parameter,
 )
 
 
@@ -42,7 +43,7 @@ def handle_text_generation(payload: Any) -> str:
     metadata = request_data.get("metadata", {})
     session_id = request_data.get("session_id", default_session_id())
     try:
-        text_type = request_data.get("type", "product")
+        text_type = extract_parameter(request_data, "text_type", "product")
         if text_type not in ["product", "marketing", "creative"]:
             raise ValueError(f"不支持的文案类型: {text_type}")
 
@@ -66,7 +67,24 @@ def handle_text_generation(payload: Any) -> str:
         if not instruction or not instruction.strip():
             raise ValueError("缺少文本生成的指令内容")
 
+        # 提取通用参数
+        style = extract_parameter(request_data, "style")
+        length = extract_parameter(request_data, "length")
+
         tool_params: Dict[str, Any] = {"instruction": instruction.strip()}
+        if style:
+            tool_params["style"] = style
+        if length:
+            tool_params["length"] = length
+
+        # 提取特定参数
+        if text_type == "marketing":
+            platform = extract_parameter(request_data, "platform")
+            tone = extract_parameter(request_data, "tone")
+            if platform:
+                tool_params["platform"] = platform
+            if tone:
+                tool_params["tone"] = tone
 
         with session_context(session_id) as sid:
             result_json = text_tool.func(**tool_params)
@@ -91,7 +109,7 @@ def handle_text_generation(payload: Any) -> str:
         for part in original_parts:
             cleaned_part = {
                 "content_type": part.get("content_type"),
-                "content_text": part.get("content_text"),
+                "content_text": part.get("content_text", ""),
             }
             # 严格过滤 parameter
             if "parameter" in part:

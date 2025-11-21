@@ -44,6 +44,34 @@ def pick_tool(tools: List[Any], names: Iterable[str]) -> Any:
     raise RuntimeError(f"未找到匹配的工具: {', '.join(names)}")
 
 
+def extract_parameter(
+    request_data: Dict[str, Any], param_name: str, default: Any = None
+) -> Any:
+    """从 request_data 或 llm_content 中提取参数。
+
+    优先级：
+    1. request_data 顶层字段
+    2. llm_content[0]["part"][...]["parameter"] 中的字段 (标准格式)
+    """
+    # 1. Try top-level
+    if param_name in request_data:
+        return request_data[param_name]
+
+    llm_content = request_data.get("llm_content")
+    if isinstance(llm_content, list) and llm_content:
+        first = llm_content[0]
+
+        # 2. Try llm_content[0]["part"][...]["parameter"]
+        parts = first.get("part", [])
+        if isinstance(parts, list):
+            for part in parts:
+                part_params = part.get("parameter", {})
+                if isinstance(part_params, dict) and param_name in part_params:
+                    return part_params[param_name]
+
+    return default
+
+
 def build_success_response(
     interface_type: str,
     session_id: str,
@@ -128,6 +156,7 @@ __all__ = [
     "require_fields",
     "session_context",
     "pick_tool",
+    "extract_parameter",
     "build_success_response",
     "build_error_response",
 ]

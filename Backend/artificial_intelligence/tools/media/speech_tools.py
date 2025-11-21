@@ -155,9 +155,6 @@ def load_speech_tools(config: AIConfig):
             # 返回成功结果
             return build_success_result(
                 parts=[part],
-                metadata={
-                    "req_text_length": result.get("req_text_length"),
-                },
             ).to_envelope(interface_type="speech")
 
         except Exception as e:

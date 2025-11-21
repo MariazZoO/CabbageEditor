@@ -10,13 +10,14 @@ from Backend.artificial_intelligence.service.common import (
     build_error_response,
     build_success_response,
     session_context,
+    extract_parameter,
 )
 
 
 def _extract_prompt_and_image(request_data: Dict[str, Any]) -> Dict[str, str]:
     llm_content = request_data.get("llm_content", [])
-    prompt = request_data.get("prompt", "")
-    image_url = request_data.get("image_url", "")
+    prompt = ""
+    image_url = ""
     if isinstance(llm_content, list) and llm_content:
         parts = llm_content[0].get("part", [])
         prompt_parts = [
@@ -41,10 +42,12 @@ def handle_video_generation(payload: Any) -> str:
         extracted = _extract_prompt_and_image(request_data)
         prompt = extracted["prompt"]
         image_url = extracted["image_url"]
+
         if not prompt or not image_url:
             raise ValueError("缺少 prompt 或 image_url")
-        resolution = request_data.get("resolution", "720P")
-        prompt_extend = request_data.get("prompt_extend", True)
+
+        resolution = extract_parameter(request_data, "resolution", "720P")
+        prompt_extend = extract_parameter(request_data, "prompt_extend", True)
 
         cfg = get_ai_config()
         from Backend.artificial_intelligence.tools.media.video_tools import (
@@ -63,7 +66,7 @@ def handle_video_generation(payload: Any) -> str:
                 prompt_extend=prompt_extend,
             )
             session_id = sid
-        
+
         # 解析 Tool 返回的 Envelope JSON
         tool_envelope = json.loads(result_json)
 
@@ -84,7 +87,7 @@ def handle_video_generation(payload: Any) -> str:
             cleaned_part = {
                 "content_type": part.get("content_type"),
                 "content_url": part.get("content_url"),
-                "content_text": part.get("content_text"),
+                "content_text": part.get("content_text", ""),
             }
             # 严格过滤 parameter
             if "parameter" in part:
@@ -96,7 +99,7 @@ def handle_video_generation(payload: Any) -> str:
                     cleaned_param["duration"] = original_param["duration"]
                 if cleaned_param:
                     cleaned_part["parameter"] = cleaned_param
-            
+
             # 移除 None 值字段
             cleaned_part = {k: v for k, v in cleaned_part.items() if v is not None}
             cleaned_parts.append(cleaned_part)

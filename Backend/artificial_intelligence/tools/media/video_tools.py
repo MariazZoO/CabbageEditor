@@ -161,21 +161,9 @@ def load_video_tools(config: AIConfig) -> List[StructuredTool]:
                 },
             )
 
-            # 构建 metadata
-            metadata = {
-                "model": client.model,
-                "source": provider.name,
-            }
-            output = result.get("output", {})
-            if "orig_prompt" in output:
-                metadata["orig_prompt"] = output["orig_prompt"]
-            if "actual_prompt" in output:
-                metadata["actual_prompt"] = output["actual_prompt"]
-
             # 返回成功结果
             return build_success_result(
                 parts=[part],
-                metadata=metadata,
             ).to_envelope(interface_type="video")
 
         except Exception as e:

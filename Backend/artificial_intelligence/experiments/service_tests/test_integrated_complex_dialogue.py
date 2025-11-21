@@ -34,10 +34,14 @@ class TestIntegratedComplexDialogue(unittest.TestCase):
                     "sent_time_stamp": 1234567890,
                     "part": [
                         {
+                            "content_type": "text",
+                            "content_text": "cat",
+                        },
+                        {
                             "content_type": "image",
                             "content_url": "http://example.com/cat.png",
-                            "parameter": {"prompt": "cat"},
-                        }
+                            "parameter": {"resolution": "1:1"},
+                        },
                     ],
                 }
             ],
@@ -105,10 +109,14 @@ class TestIntegratedComplexDialogue(unittest.TestCase):
         # 验证第三条：工具消息 (解析后的)
         self.assertEqual(llm_content[2]["role"], "tool")
         self.assertEqual(llm_content[2]["interface_type"], "image")
-        self.assertEqual(llm_content[2]["part"][0]["content_type"], "image")
-        self.assertEqual(
-            llm_content[2]["part"][0]["content_url"], "http://example.com/cat.png"
-        )
+        
+        parts = llm_content[2]["part"]
+        self.assertEqual(len(parts), 2)
+        self.assertEqual(parts[0]["content_type"], "text")
+        self.assertEqual(parts[0]["content_text"], "cat")
+        self.assertEqual(parts[1]["content_type"], "image")
+        self.assertEqual(parts[1]["content_url"], "http://example.com/cat.png")
+        self.assertEqual(parts[1]["content_text"], "")
 
         # 验证第四条：助手消息
         self.assertEqual(llm_content[3]["role"], "assistant")

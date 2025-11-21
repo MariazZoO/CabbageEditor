@@ -95,10 +95,14 @@ class TestServiceErrorHandling(unittest.TestCase):
     def test_image_generation_tool_error(self, mock_get_config, mock_load_tools):
         """测试图像生成工具返回错误的处理"""
         mock_tool = MagicMock()
-        # 模拟工具返回包含 error 的 JSON
-        mock_tool.func.return_value = json.dumps(
-            {"status": "failed", "error": "API配额已用尽"}
-        )
+        # 模拟工具返回包含 error 的 Envelope
+        mock_tool.func.return_value = json.dumps({
+            "session_id": "test_sid",
+            "error_code": 1,
+            "status_info": "API配额已用尽",
+            "llm_content": [],
+            "metadata": {}
+        })
         mock_load_tools.return_value = [mock_tool]
 
         payload = {
@@ -140,17 +144,30 @@ class TestServiceErrorHandling(unittest.TestCase):
         self.validate_error_structure(response, "video")
 
         data = json.loads(response)
-        self.assertIn("image_url", data["status_info"].lower())
+        # Service raises "缺少 prompt 或 image_url"
+        self.assertTrue(
+            "image_url" in data["status_info"].lower() or "prompt" in data["status_info"].lower()
+        )
 
     @patch("Backend.artificial_intelligence.tools.media.speech_tools.load_speech_tools")
     @patch("Backend.artificial_intelligence.service.speech.get_ai_config")
     def test_speech_generation_empty_url(self, mock_get_config, mock_load_tools):
         """测试语音合成返回空URL的错误处理"""
         mock_tool = MagicMock()
-        # 模拟工具返回空的 audio_url
-        mock_tool.func.return_value = json.dumps(
-            {"status": "success", "audio_url": "", "duration": 0}
-        )
+        # 模拟工具返回成功 Envelope 但没有有效内容
+        mock_tool.func.return_value = json.dumps({
+            "session_id": "test_sid",
+            "error_code": 0,
+            "status_info": "success",
+            "llm_content": [
+                {
+                    "role": "tool",
+                    "interface_type": "speech",
+                    "part": []  # Empty parts
+                }
+            ],
+            "metadata": {}
+        })
         mock_load_tools.return_value = [mock_tool]
 
         payload = {
@@ -168,17 +185,28 @@ class TestServiceErrorHandling(unittest.TestCase):
         self.validate_error_structure(response, "speech")
 
         data = json.loads(response)
-        self.assertIn("URL", data["status_info"])
+        # Service raises "语音合成未返回有效的音频部分"
+        self.assertIn("有效", data["status_info"])
 
     @patch("Backend.artificial_intelligence.tools.media.music_tools.load_music_tools")
     @patch("Backend.artificial_intelligence.service.music.get_ai_config")
     def test_music_generation_empty_audio_list(self, mock_get_config, mock_load_tools):
         """测试音乐生成返回空列表的错误处理"""
         mock_tool = MagicMock()
-        # 模拟工具返回空的 audio_list
-        mock_tool.func.return_value = json.dumps(
-            {"status": "success", "audio_list": [], "audio_count": 0}
-        )
+        # 模拟工具返回成功 Envelope 但没有有效内容
+        mock_tool.func.return_value = json.dumps({
+            "session_id": "test_sid",
+            "error_code": 0,
+            "status_info": "success",
+            "llm_content": [
+                {
+                    "role": "tool",
+                    "interface_type": "music",
+                    "part": []  # Empty parts
+                }
+            ],
+            "metadata": {}
+        })
         mock_load_tools.return_value = [mock_tool]
 
         payload = {
@@ -196,7 +224,8 @@ class TestServiceErrorHandling(unittest.TestCase):
         self.validate_error_structure(response, "music")
 
         data = json.loads(response)
-        self.assertIn("音频", data["status_info"])
+        # Service raises "音乐生成未返回有效的音频部分"
+        self.assertIn("有效", data["status_info"])
 
     @patch("Backend.artificial_intelligence.service.integrated.process_chat_request")
     def test_integrated_exception_handling(self, mock_process):

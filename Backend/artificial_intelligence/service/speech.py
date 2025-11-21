@@ -10,6 +10,7 @@ from Backend.artificial_intelligence.service.common import (
     build_error_response,
     build_success_response,
     session_context,
+    extract_parameter,
 )
 
 
@@ -46,20 +47,20 @@ def handle_speech_generation(payload: Any) -> str:
         speech_tool = tools[0]
         tool_params = {
             "text": text,
-            "voice_type": request_data.get(
-                "voice_type", "zh_female_cancan_mars_bigtts"
+            "voice_type": extract_parameter(
+                request_data, "voice_type", "zh_female_cancan_mars_bigtts"
             ),
-            "speed_ratio": request_data.get("speed_ratio", 1.0),
-            "loudness_ratio": request_data.get("loudness_ratio", 1.0),
-            "encoding": request_data.get("encoding", "mp3"),
-            "rate": request_data.get("rate", 24000),
-            "max_wait_seconds": request_data.get("max_wait_seconds", 60),
-            "poll_interval": request_data.get("poll_interval", 2.0),
+            "speed_ratio": extract_parameter(request_data, "speed_ratio", 1.0),
+            "loudness_ratio": extract_parameter(request_data, "loudness_ratio", 1.0),
+            "encoding": extract_parameter(request_data, "encoding", "mp3"),
+            "rate": extract_parameter(request_data, "rate", 24000),
+            "max_wait_seconds": extract_parameter(request_data, "max_wait_seconds", 60),
+            "poll_interval": extract_parameter(request_data, "poll_interval", 2.0),
         }
         with session_context(session_id) as sid:
             result_json = speech_tool.func(**tool_params)
             session_id = sid
-        
+
         # 解析 Tool 返回的 Envelope JSON
         tool_envelope = json.loads(result_json)
 
@@ -80,7 +81,7 @@ def handle_speech_generation(payload: Any) -> str:
             cleaned_part = {
                 "content_type": part.get("content_type"),
                 "content_url": part.get("content_url"),
-                "content_text": part.get("content_text"),
+                "content_text": part.get("content_text", ""),
             }
             # 严格过滤 parameter
             if "parameter" in part:
@@ -92,7 +93,7 @@ def handle_speech_generation(payload: Any) -> str:
                     cleaned_param["duration"] = original_param["duration"]
                 if cleaned_param:
                     cleaned_part["parameter"] = cleaned_param
-            
+
             # 移除 None 值字段
             cleaned_part = {k: v for k, v in cleaned_part.items() if v is not None}
             cleaned_parts.append(cleaned_part)

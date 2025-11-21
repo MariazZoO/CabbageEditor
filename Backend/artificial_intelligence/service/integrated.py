@@ -56,7 +56,11 @@ def handle_integrated_entrance(payload: Any) -> str:
                                 url = block.get("image_url", {}).get("url")
                                 if url:
                                     parts.append(
-                                        {"content_type": "image", "content_url": url}
+                                        {
+                                            "content_type": "image",
+                                            "content_url": url,
+                                            "content_text": "",
+                                        }
                                     )
 
             elif isinstance(msg, AIMessage):
@@ -89,7 +93,7 @@ def handle_integrated_entrance(payload: Any) -> str:
                                     cleaned_part = {
                                         "content_type": part.get("content_type"),
                                         "content_url": part.get("content_url"),
-                                        "content_text": part.get("content_text"),
+                                        "content_text": part.get("content_text", ""),
                                     }
                                     if "parameter" in part:
                                         original_param = part["parameter"]

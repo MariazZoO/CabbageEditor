@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import httpx
 
 from Backend.artificial_intelligence.config.ai_config import ProviderConfig
+from Backend.artificial_intelligence.models.video_utils import retry_operation
 # from Backend.artificial_intelligence.storage import AUTOSAVE_URL_SCHEME
 
 
@@ -52,6 +53,7 @@ class LingyaImageClient:
             return self._generate_with_images(prompt=prompt, images=images_data)
         return self._generate_from_text(prompt=prompt, aspect_ratio=aspect_ratio)
 
+    @retry_operation(max_retries=3)
     def _generate_from_text(self, *, prompt: str, aspect_ratio: str) -> Tuple[str, str]:
         payload = {
             "model": self.model,
@@ -68,6 +70,7 @@ class LingyaImageClient:
         response.raise_for_status()
         return self._parse_response(response.json())
 
+    @retry_operation(max_retries=3)
     def _generate_with_images(
         self, *, prompt: str, images: List[str]
     ) -> Tuple[str, str]:

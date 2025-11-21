@@ -132,10 +132,6 @@ def load_text_tools(config: AIConfig) -> List[StructuredTool]:
             # 返回成功结果
             return build_success_result(
                 parts=[part],
-                metadata={
-                    "style": style,
-                    "length": length,
-                },
             ).to_envelope(interface_type="text")
         except Exception as e:
             return build_error_result(error_message=str(e)).to_envelope(
@@ -203,10 +199,6 @@ def load_text_tools(config: AIConfig) -> List[StructuredTool]:
             # 返回成功结果
             return build_success_result(
                 parts=[part],
-                metadata={
-                    "platform": platform,
-                    "tone": tone,
-                },
             ).to_envelope(interface_type="text")
         except Exception as e:
             return build_error_result(error_message=str(e)).to_envelope(
@@ -270,10 +262,6 @@ def load_text_tools(config: AIConfig) -> List[StructuredTool]:
             # 返回成功结果
             return build_success_result(
                 parts=[part],
-                metadata={
-                    "style": style,
-                    "length": length,
-                },
             ).to_envelope(interface_type="text")
         except Exception as e:
             return build_error_result(error_message=str(e)).to_envelope(

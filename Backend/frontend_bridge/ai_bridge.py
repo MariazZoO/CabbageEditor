@@ -98,10 +98,31 @@ class AIService(QObject):
             msg_data = json.loads(ai_message)
             payload = msg_data if isinstance(msg_data, dict) else {"message": msg_data}
 
+            # 取出 token，确保不进入下游 API 结构
+            token = None
+            if isinstance(payload, dict):
+                token = payload.pop("token", None) or token
+                meta_in = payload.get("metadata")
+                if isinstance(meta_in, dict) and "token" in meta_in:
+                    token = meta_in.pop("token") or token
+
             # 在线程池中执行阻塞的 AI 调用
             result = await self._loop.run_in_executor(
                 self._executor, handle_integrated_entrance, payload
             )
+
+            # 若有 token，仅在回传给前端时复用，用于本地匹配，不进入实际 AI 请求/响应格式
+            if token:
+                try:
+                    result_obj = json.loads(result)
+                except Exception:
+                    result_obj = {"content": result}
+                metadata = result_obj.get("metadata")
+                if not isinstance(metadata, dict):
+                    metadata = {}
+                    result_obj["metadata"] = metadata
+                metadata["token"] = token
+                result = json.dumps(result_obj, ensure_ascii=False)
 
             # 发送响应信号
             self.ai_response.emit(result)

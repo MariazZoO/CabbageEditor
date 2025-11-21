@@ -135,40 +135,40 @@ class LingyaImageClient:
         return images
 
 
-def _load_image_as_data_uri(store, source: str) -> Optional[str]:
-    """将本地图片转换为data URI格式"""
-    if not source:
-        return None
-    path = _path_from_source(store, source)
-    if not path or not path.exists():
-        return None
+# def _load_image_as_data_uri(store, source: str) -> Optional[str]:
+#     """将本地图片转换为data URI格式"""
+#     if not source:
+#         return None
+#     path = _path_from_source(store, source)
+#     if not path or not path.exists():
+#         return None
 
-    # 读取图片并转换为data URI
-    image_bytes = path.read_bytes()
-    b64_data = base64.b64encode(image_bytes).decode("utf-8")
+#     # 读取图片并转换为data URI
+#     image_bytes = path.read_bytes()
+#     b64_data = base64.b64encode(image_bytes).decode("utf-8")
 
-    # 根据文件扩展名确定MIME类型
-    suffix = path.suffix.lower()
-    mime_map = {
-        ".png": "image/png",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".gif": "image/gif",
-        ".webp": "image/webp",
-    }
-    mime_type = mime_map.get(suffix, "image/png")
+#     # 根据文件扩展名确定MIME类型
+#     suffix = path.suffix.lower()
+#     mime_map = {
+#         ".png": "image/png",
+#         ".jpg": "image/jpeg",
+#         ".jpeg": "image/jpeg",
+#         ".gif": "image/gif",
+#         ".webp": "image/webp",
+#     }
+#     mime_type = mime_map.get(suffix, "image/png")
 
-    return f"data:{mime_type};base64,{b64_data}"
+#     return f"data:{mime_type};base64,{b64_data}"
 
 
-def _path_from_source(store, source: str):  # 返回 Path 或 None
-    if source.startswith(AUTOSAVE_URL_SCHEME):
-        stored = store.resolve_url(source)
-        return stored.path if stored else None
-    from pathlib import Path
+# def _path_from_source(store, source: str):  # 返回 Path 或 None
+#     if source.startswith(AUTOSAVE_URL_SCHEME):
+#         stored = store.resolve_url(source)
+#         return stored.path if stored else None
+#     from pathlib import Path
 
-    candidate = Path(source)
-    return candidate if candidate.exists() else None
+#     candidate = Path(source)
+#     return candidate if candidate.exists() else None
 
 
 __all__ = ["LingyaImageClient"]

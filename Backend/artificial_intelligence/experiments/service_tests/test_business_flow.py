@@ -207,44 +207,25 @@ Response Adapter -> JSON Envelope.
 
         mock_client.generate_video_from_image.assert_called()
 
-    @patch("Backend.artificial_intelligence.tools.media.music_tools.requests")
+    @patch("Backend.artificial_intelligence.tools.media.music_tools.SunoMusicClient")
     @patch("Backend.artificial_intelligence.service.music.get_ai_config")
-    def test_music_generation_flow(self, mock_get_config, mock_requests):
+    def test_music_generation_flow(self, mock_get_config, mock_client_cls):
         """Test music generation flow (Suno)"""
         mock_config = MagicMock()
         mock_config.music.api_key = "suno_key"
         mock_config.music.base_url = "https://suno.api"
         mock_get_config.return_value = mock_config
 
-        # Mock POST /generate
-        mock_post_resp = MagicMock()
-        mock_post_resp.json.return_value = {"code": 200, "data": {"taskId": "task_123"}}
-
-        # Mock GET /record-info (Polling)
-        mock_get_resp_success = MagicMock()
-        mock_get_resp_success.json.return_value = {
-            "code": 200,
-            "data": {
-                "status": "SUCCESS",
-                "response": {
-                    "sunoData": [
-                        {
-                            "audioUrl": "http://music.mp3",
-                            "duration": 30,
-                            "title": "Song",
-                        }
-                    ]
-                },
-            },
-        }
-
-        def side_effect(*args, **kwargs):
-            if kwargs.get("json") and "prompt" in kwargs["json"]:
-                return mock_post_resp
-            return mock_get_resp_success
-
-        mock_requests.post.side_effect = side_effect
-        mock_requests.get.side_effect = side_effect
+        # Mock Client
+        mock_client = mock_client_cls.return_value
+        mock_client.generate_music.return_value = [
+            {
+                "audio_url": "http://music.mp3",
+                "duration": 30,
+                "title": "Song",
+                "model": "V5",
+            }
+        ]
 
         payload = {
             "session_id": "test_session_music",
@@ -265,6 +246,9 @@ Response Adapter -> JSON Envelope.
 
         response_str = handle_music_generation(payload)
         response = json.loads(response_str)
+
+        if response["error_code"] != 0:
+            print(f"\nMusic Generation Error: {response.get('status_info')}")
 
         self.assertEqual(response["error_code"], 0)
         part = response["llm_content"][0]["part"][0]
@@ -364,6 +348,9 @@ Response Adapter -> JSON Envelope.
         # 4. Execute
         response_str = handle_image_generation(payload)
         response = json.loads(response_str)
+
+        if response["error_code"] != 0:
+            print(f"\nImage Generation Error: {response.get('status_info')}")
 
         # 5. Verify
         self.assertEqual(response["error_code"], 0)

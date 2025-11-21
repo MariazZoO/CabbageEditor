@@ -3,6 +3,7 @@ import json
 from unittest.mock import MagicMock, patch
 import sys
 import os
+from langchain_core.messages import AIMessage
 
 # 添加项目根目录到 sys.path，以便导入模块
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../..")))
@@ -66,26 +67,28 @@ class TestServiceJsonStructure(unittest.TestCase):
     def test_text_generation_structure(self, mock_get_config, mock_load_tools):
         # Setup Mock
         mock_tool = MagicMock()
-        mock_tool.func.return_value = json.dumps({
-            "session_id": "test_sid",
-            "error_code": 0,
-            "status_info": "success",
-            "llm_content": [
-                {
-                    "role": "tool",
-                    "interface_type": "text",
-                    "sent_time_stamp": 123,
-                    "part": [
-                        {
-                            "content_type": "text",
-                            "content_text": "Generated Text Content",
-                            "parameter": {"text_type": "product"}
-                        }
-                    ]
-                }
-            ],
-            "metadata": {}
-        })
+        mock_tool.func.return_value = json.dumps(
+            {
+                "session_id": "test_sid",
+                "error_code": 0,
+                "status_info": "success",
+                "llm_content": [
+                    {
+                        "role": "tool",
+                        "interface_type": "text",
+                        "sent_time_stamp": 123,
+                        "part": [
+                            {
+                                "content_type": "text",
+                                "content_text": "Generated Text Content",
+                                "parameter": {"text_type": "product"},
+                            }
+                        ],
+                    }
+                ],
+                "metadata": {},
+            }
+        )
         mock_tool.name = "generate_product_text"
         mock_load_tools.return_value = [mock_tool]
 
@@ -111,37 +114,35 @@ class TestServiceJsonStructure(unittest.TestCase):
     @patch("Backend.artificial_intelligence.service.image.get_ai_config")
     def test_image_generation_structure(self, mock_get_config, mock_load_tools):
         mock_tool = MagicMock()
-        mock_tool.func.return_value = json.dumps({
-            "session_id": "test_sid",
-            "error_code": 0,
-            "status_info": "success",
-            "llm_content": [
-                {
-                    "role": "tool",
-                    "interface_type": "image",
-                    "sent_time_stamp": 123,
-                    "part": [
-                        {
-                            "content_type": "image",
-                            "content_url": "http://example.com/img.png",
-                            "parameter": {"resolution": "1024x1024", "prompt": "A cat"}
-                        }
-                    ]
-                }
-            ],
-            "metadata": {}
-        })
+        mock_tool.func.return_value = json.dumps(
+            {
+                "session_id": "test_sid",
+                "error_code": 0,
+                "status_info": "success",
+                "llm_content": [
+                    {
+                        "role": "tool",
+                        "interface_type": "image",
+                        "sent_time_stamp": 123,
+                        "part": [
+                            {
+                                "content_type": "image",
+                                "content_url": "http://example.com/img.png",
+                                "parameter": {"resolution": "1024x1024", "prompt": "A cat"},
+                            }
+                        ],
+                    }
+                ],
+                "metadata": {},
+            }
+        )
         mock_load_tools.return_value = [mock_tool]
 
         payload = {
             "session_id": "test_sid",
-            "llm_content": [{
-                "role": "user",
-                "part": [{
-                    "content_type": "text",
-                    "content_text": "Draw a cat"
-                }]
-            }],
+            "llm_content": [
+                {"role": "user", "part": [{"content_type": "text", "content_text": "Draw a cat"}]}
+            ],
             "metadata": {"test": 123},
         }
 
@@ -155,42 +156,46 @@ class TestServiceJsonStructure(unittest.TestCase):
     @patch("Backend.artificial_intelligence.service.video.get_ai_config")
     def test_video_generation_structure(self, mock_get_config, mock_load_tools):
         mock_tool = MagicMock()
-        mock_tool.func.return_value = json.dumps({
-            "session_id": "test_sid",
-            "error_code": 0,
-            "status_info": "success",
-            "llm_content": [
-                {
-                    "role": "tool",
-                    "interface_type": "video",
-                    "sent_time_stamp": 123,
-                    "part": [
-                        {
-                            "content_type": "video",
-                            "content_url": "http://example.com/vid.mp4",
-                            "parameter": {
-                                "resolution": "720P",
-                                "duration": 5,
-                                "status": "succeeded",
-                                "task_id": "hidden_id"
+        mock_tool.func.return_value = json.dumps(
+            {
+                "session_id": "test_sid",
+                "error_code": 0,
+                "status_info": "success",
+                "llm_content": [
+                    {
+                        "role": "tool",
+                        "interface_type": "video",
+                        "sent_time_stamp": 123,
+                        "part": [
+                            {
+                                "content_type": "video",
+                                "content_url": "http://example.com/vid.mp4",
+                                "parameter": {
+                                    "resolution": "720P",
+                                    "duration": 5,
+                                    "status": "succeeded",
+                                    "task_id": "hidden_id",
+                                },
                             }
-                        }
-                    ]
-                }
-            ],
-            "metadata": {}
-        })
+                        ],
+                    }
+                ],
+                "metadata": {},
+            }
+        )
         mock_load_tools.return_value = [mock_tool]
 
         payload = {
             "session_id": "test_sid",
-            "llm_content": [{
-                "role": "user",
-                "part": [
-                    {"content_type": "text", "content_text": "A moving cat"},
-                    {"content_type": "image", "content_url": "http://img"}
-                ]
-            }],
+            "llm_content": [
+                {
+                    "role": "user",
+                    "part": [
+                        {"content_type": "text", "content_text": "A moving cat"},
+                        {"content_type": "image", "content_url": "http://img"},
+                    ],
+                }
+            ],
             "metadata": {"keep": "me"},
         }
 
@@ -208,41 +213,35 @@ class TestServiceJsonStructure(unittest.TestCase):
     @patch("Backend.artificial_intelligence.service.music.get_ai_config")
     def test_music_generation_structure(self, mock_get_config, mock_load_tools):
         mock_tool = MagicMock()
-        mock_tool.func.return_value = json.dumps({
-            "session_id": "test_sid",
-            "error_code": 0,
-            "status_info": "success",
-            "llm_content": [
-                {
-                    "role": "tool",
-                    "interface_type": "music",
-                    "sent_time_stamp": 123,
-                    "part": [
-                        {
-                            "content_type": "audio",
-                            "content_url": "http://example.com/music.mp3",
-                            "parameter": {
-                                "duration": 30,
-                                "music_style": "Jazz",
-                                "model": "V5"
+        mock_tool.func.return_value = json.dumps(
+            {
+                "session_id": "test_sid",
+                "error_code": 0,
+                "status_info": "success",
+                "llm_content": [
+                    {
+                        "role": "tool",
+                        "interface_type": "music",
+                        "sent_time_stamp": 123,
+                        "part": [
+                            {
+                                "content_type": "audio",
+                                "content_url": "http://example.com/music.mp3",
+                                "parameter": {"duration": 30, "music_style": "Jazz", "model": "V5"},
                             }
-                        }
-                    ]
-                }
-            ],
-            "metadata": {}
-        })
+                        ],
+                    }
+                ],
+                "metadata": {},
+            }
+        )
         mock_load_tools.return_value = [mock_tool]
 
         payload = {
             "session_id": "test_sid",
-            "llm_content": [{
-                "role": "user",
-                "part": [{
-                    "content_type": "text",
-                    "content_text": "Jazz music"
-                }]
-            }],
+            "llm_content": [
+                {"role": "user", "part": [{"content_type": "text", "content_text": "Jazz music"}]}
+            ],
             "metadata": {"m": 1},
         }
 
@@ -258,41 +257,39 @@ class TestServiceJsonStructure(unittest.TestCase):
     @patch("Backend.artificial_intelligence.service.speech.get_ai_config")
     def test_speech_generation_structure(self, mock_get_config, mock_load_tools):
         mock_tool = MagicMock()
-        mock_tool.func.return_value = json.dumps({
-            "session_id": "test_sid",
-            "error_code": 0,
-            "status_info": "success",
-            "llm_content": [
-                {
-                    "role": "tool",
-                    "interface_type": "speech",
-                    "sent_time_stamp": 123,
-                    "part": [
-                        {
-                            "content_type": "audio",
-                            "content_url": "http://example.com/speech.mp3",
-                            "parameter": {
-                                "duration": 10,
-                                "speech_type": "female",
-                                "encoding": "mp3"
+        mock_tool.func.return_value = json.dumps(
+            {
+                "session_id": "test_sid",
+                "error_code": 0,
+                "status_info": "success",
+                "llm_content": [
+                    {
+                        "role": "tool",
+                        "interface_type": "speech",
+                        "sent_time_stamp": 123,
+                        "part": [
+                            {
+                                "content_type": "audio",
+                                "content_url": "http://example.com/speech.mp3",
+                                "parameter": {
+                                    "duration": 10,
+                                    "speech_type": "female",
+                                    "encoding": "mp3",
+                                },
                             }
-                        }
-                    ]
-                }
-            ],
-            "metadata": {}
-        })
+                        ],
+                    }
+                ],
+                "metadata": {},
+            }
+        )
         mock_load_tools.return_value = [mock_tool]
 
         payload = {
             "session_id": "test_sid",
-            "llm_content": [{
-                "role": "user",
-                "part": [{
-                    "content_type": "text",
-                    "content_text": "Hello"
-                }]
-            }],
+            "llm_content": [
+                {"role": "user", "part": [{"content_type": "text", "content_text": "Hello"}]}
+            ],
             "metadata": {"s": 2},
         }
 
@@ -304,30 +301,31 @@ class TestServiceJsonStructure(unittest.TestCase):
         self.assertNotIn("encoding", params)
         self.assertIn("speech_type", params)
 
-    @patch("Backend.artificial_intelligence.service.integrated.process_chat_request")
-    def test_integrated_structure(self, mock_process):
-        mock_process.return_value = {
-            "messages": [{"role": "assistant", "content": "Chat response"}],
-            "session_id": "test_sid",
-            "pending_history": [],
-        }
+    def test_integrated_structure(self):
+        # 尝试直接 patch 模块中的名称
+        with patch("Backend.artificial_intelligence.service.integrated.process_chat_request") as mock_process:
+            mock_process.return_value = {
+                "messages": [AIMessage(content="Chat response")],
+                "session_id": "test_sid",
+                "pending_history": [],
+            }
 
-        payload = {
-            "session_id": "test_sid",
-            "llm_content": [
-                {
-                    "role": "user",
-                    "part": [{"content_type": "text", "content_text": "Hi"}],
-                }
-            ],
-            "metadata": {"chat": "true"},
-        }
+            payload = {
+                "session_id": "test_sid",
+                "llm_content": [
+                    {
+                        "role": "user",
+                        "part": [{"content_type": "text", "content_text": "Hi"}],
+                    }
+                ],
+                "metadata": {"chat": "true"},
+            }
 
-        response = handle_integrated_entrance(payload)
-        self.validate_structure(response, "integrated")
+            response = handle_integrated_entrance(payload)
+            self.validate_structure(response, "integrated")
 
-        data = json.loads(response)
-        self.assertEqual(data["metadata"].get("chat"), "true")
+            data = json.loads(response)
+            self.assertEqual(data["metadata"].get("chat"), "true")
 
 
 if __name__ == "__main__":

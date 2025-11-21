@@ -13,17 +13,12 @@ from pydantic import BaseModel, Field
 
 from Backend.artificial_intelligence.config.ai_config import AIConfig, MediaToolConfig
 from Backend.artificial_intelligence.models.client_video import DashScopeVideoClient
-from Backend.artificial_intelligence.models.video_utils import (
-    resolve_image_url,
-    resize_image_with_constraints,
-)
+from Backend.artificial_intelligence.models.utils import resize_image_with_constraints
 from Backend.artificial_intelligence.tools.response_adapter import (
     build_part,
     build_success_result,
     build_error_result,
 )
-
-# from Backend.artificial_intelligence.storage import get_media_store
 
 
 class VideoGenerationInput(BaseModel):
@@ -46,9 +41,8 @@ class VideoGenerationInput(BaseModel):
         ...,
         description=(
             "输入图片的 URL，作为视频生成的起始帧。支持以下格式："
-            "\n1) data:image/...;base64,... - Base64 编码的图片数据 URI（推荐）；"
-            "\n2) http:// 或 https:// - 网络图片 URL；"
-            "\n3) file:// - 本地文件路径（需要是绝对路径）。"
+            "\n1) http:// 或 https:// - 网络图片 URL；"
+            "\n2) file:// - 本地文件路径（需要是绝对路径）。"
             "\n注意：图片会被解析并转换为模型可接受的格式，如果图片无法加载将返回错误。"
         ),
     )
@@ -118,12 +112,14 @@ def load_video_tools(config: AIConfig) -> List[StructuredTool]:
                 error_message=f"无效的分辨率: {data.resolution}，支持的值: {', '.join(valid_resolutions)}"
             ).to_envelope(interface_type="video")
 
-        # 准备图片 URL
-        image_url = resolve_image_url(data.image_url, None)
-        if not image_url:
+        # 验证图片 URL 是否存在
+        if not data.image_url or not data.image_url.strip():
             return build_error_result(
-                error_message=f"无法加载图片：{data.image_url}"
+                error_message="图生视频必须提供图片 URL"
             ).to_envelope(interface_type="video")
+
+        # 准备图片 URL（直接使用，不做解析转换）
+        image_url = data.image_url
 
         # 如果是本地文件，尝试压缩以避免上传超时
         if image_url.startswith("file://"):
@@ -180,7 +176,7 @@ def load_video_tools(config: AIConfig) -> List[StructuredTool]:
             "根据图片和文本提示词生成视频（图生视频），返回云端视频 URL。"
             "输入需要包含："
             "1) 视频生成提示词（描述动作、场景、运动等）；"
-            "2) 输入图片的 URL（支持 base64 data URI、HTTP(S) URL 或 file:// URL）。"
+            "2) 输入图片的 URL（支持HTTP(S) URL 或 file:// URL）。"
             "可选参数包括分辨率（480P/720P/1080P，默认720P）和提示词扩展开关（默认开启）。"
         ),
         args_schema=VideoGenerationInput,

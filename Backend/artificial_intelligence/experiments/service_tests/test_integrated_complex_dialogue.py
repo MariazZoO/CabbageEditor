@@ -88,40 +88,13 @@ class TestIntegratedComplexDialogue(unittest.TestCase):
         self.assertIsInstance(llm_content, list)
 
         # 验证消息数量
-        # 1. HumanMessage -> role: user
-        # 2. AIMessage -> role: assistant
-        # 3. ToolMessage -> role: tool (from envelope)
-        # 4. AIMessage -> role: assistant
-        self.assertEqual(len(llm_content), 4)
+        # Service 只返回最后一条 Assistant 消息
+        self.assertEqual(len(llm_content), 1)
 
-        # 验证第一条：用户消息
-        self.assertEqual(llm_content[0]["role"], "user")
+        # 验证最后一条：助手消息
+        self.assertEqual(llm_content[0]["role"], "assistant")
         self.assertEqual(
-            llm_content[0]["part"][0]["content_text"], "帮我生成一张猫的图片"
-        )
-
-        # 验证第二条：助手消息
-        self.assertEqual(llm_content[1]["role"], "assistant")
-        self.assertEqual(
-            llm_content[1]["part"][0]["content_text"], "好的，正在为您生成..."
-        )
-
-        # 验证第三条：工具消息 (解析后的)
-        self.assertEqual(llm_content[2]["role"], "tool")
-        self.assertEqual(llm_content[2]["interface_type"], "image")
-        
-        parts = llm_content[2]["part"]
-        self.assertEqual(len(parts), 2)
-        self.assertEqual(parts[0]["content_type"], "text")
-        self.assertEqual(parts[0]["content_text"], "cat")
-        self.assertEqual(parts[1]["content_type"], "image")
-        self.assertEqual(parts[1]["content_url"], "http://example.com/cat.png")
-        self.assertEqual(parts[1]["content_text"], "")
-
-        # 验证第四条：助手消息
-        self.assertEqual(llm_content[3]["role"], "assistant")
-        self.assertEqual(
-            llm_content[3]["part"][0]["content_text"], "图片生成好了，你看怎么样？"
+            llm_content[0]["part"][0]["content_text"], "图片生成好了，你看怎么样？"
         )
 
         print("\n=== Integrated Response JSON ===")

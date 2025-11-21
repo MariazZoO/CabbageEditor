@@ -6,15 +6,15 @@ DashScope 视频生成客户端
 from __future__ import annotations
 
 from http import HTTPStatus
-from typing import Dict, Any
+from typing import Dict, Any, Tuple, Optional
 from dashscope import VideoSynthesis
 import dashscope
 
 from Backend.artificial_intelligence.config.ai_config import ProviderConfig
-from Backend.artificial_intelligence.models.video_utils import TaskPoller, retry_operation
+from Backend.artificial_intelligence.models.utils import retry_operation, TaskPoller, BaseAPIClient
 
 
-class DashScopeVideoClient:
+class DashScopeVideoClient(BaseAPIClient):
     """
     DashScope 视频生成客户端
 
@@ -35,18 +35,12 @@ class DashScopeVideoClient:
         - model: 模型名称
         - base_url: API 基础 URL（可选）
         """
-        if not provider.api_key:
-            raise RuntimeError(f"Provider '{provider.name}' 缺少 API Key")
-
-        self.provider = provider
+        super().__init__(provider, base_url)
         self.model = model
-        self.api_key = provider.api_key
 
         # 设置 DashScope API 基础 URL
-        if base_url:
-            dashscope.base_http_api_url = base_url
-        elif provider.base_url:
-            dashscope.base_http_api_url = provider.base_url
+        if self.base_url:
+            dashscope.base_http_api_url = self.base_url
         else:
             dashscope.base_http_api_url = "https://dashscope.aliyuncs.com/api/v1"
 
@@ -99,10 +93,63 @@ class DashScopeVideoClient:
         task_id = rsp.output.task_id
 
         # 轮询任务状态
-        poller = TaskPoller(
-            api_key=self.api_key, interval=poll_interval, timeout=max_wait_seconds
-        )
-        result = poller.poll(task_id)
+        poller = TaskPoller(interval=poll_interval, timeout=max_wait_seconds)
+
+        def check_status(tid: str) -> Tuple[str, Any, Optional[str]]:
+            response = VideoSynthesis.fetch(
+                api_key=self.api_key,
+                task=tid,
+            )
+
+            if response.status_code != HTTPStatus.OK:
+                raise RuntimeError(
+                    f"查询任务状态失败: status_code={response.status_code}, "
+                    f"code={response.code}, message={response.message}"
+                )
+
+            status = response.output.task_status
+            result = None
+            error = None
+
+            if status == "SUCCEEDED":
+                result = self._build_result(response)
+            elif status == "FAILED":
+                error = getattr(response.output, "message", "未知错误")
+
+            return status, result, error
+
+        return poller.poll(task_id, check_status)
+
+    def _build_result(self, response) -> Dict[str, Any]:
+        """构建任务结果字典"""
+        output = response.output
+        usage = response.usage if hasattr(response, "usage") else {}
+
+        result = {
+            "task_id": output.task_id,
+            "task_status": output.task_status,
+            "output": {
+                "video_url": getattr(output, "video_url", None),
+            },
+            "usage": {},
+        }
+
+        # 添加可选的输出字段
+        optional_fields = [
+            "orig_prompt",
+            "actual_prompt",
+            "submit_time",
+            "scheduled_time",
+            "end_time",
+        ]
+        for field in optional_fields:
+            if hasattr(output, field):
+                result["output"][field] = getattr(output, field)
+
+        if usage:
+            result["usage"] = {
+                "video_count": getattr(usage, "video_count", 0),
+            }
 
         return result
 

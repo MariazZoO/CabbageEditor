@@ -4,56 +4,14 @@
 """
 
 import uuid
-from typing import Optional, Dict, Any
-from dataclasses import dataclass, field
+from typing import Optional, Dict, Any, Tuple
 import requests
 
-
-@dataclass
-class AppConfig:
-    """应用配置"""
-
-    appid: str
-    token: str
-    cluster: str = "volcano_tts"
-
-
-@dataclass
-class UserConfig:
-    """用户配置"""
-
-    uid: str = "default_user"
-
-
-@dataclass
-class AudioConfig:
-    """音频配置"""
-
-    voice_type: str  # 音色类型
-    encoding: str = "mp3"  # 音频编码格式: wav/pcm/ogg_opus/mp3
-    speed_ratio: float = 1.0  # 语速 [0.1, 2]
-    rate: int = 24000  # 采样率: 8000/16000/24000
-    bitrate: int = 160  # 比特率 kb/s
-    emotion: Optional[str] = None  # 音色情感
-    enable_emotion: bool = False  # 是否启用情感
-    emotion_scale: Optional[float] = None  # 情绪值 [1, 5]
-    loudness_ratio: float = 1.0  # 音量调节 [0.5, 2]
-    explicit_language: Optional[str] = None  # 明确语种
-    context_language: Optional[str] = None  # 参考语种
-
-
-@dataclass
-class RequestConfig:
-    """请求配置（已废弃，保留用于兼容性）"""
-
-    reqid: str = field(default_factory=lambda: str(uuid.uuid4()))
-    text: str = ""
-    text_type: str = "plain"
-    operation: str = "query"
-    model: Optional[str] = None
-    silence_duration: Optional[float] = None
-    with_timestamp: Optional[int] = None
-    extra_param: Optional[Dict[str, Any]] = None
+from Backend.artificial_intelligence.models.speech_config import (
+    AppConfig,
+    AudioConfig,
+)
+from Backend.artificial_intelligence.models.utils import TaskPoller
 
 
 class TTSClient:
@@ -87,19 +45,16 @@ class TTSClient:
         self,
         text: str,
         audio_config: AudioConfig,
-        user_config: Optional[UserConfig] = None,
         unique_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """构建submit请求体 - v3 API格式"""
-        if user_config is None:
-            user_config = UserConfig()
 
         # 将速度和音量从比例转换为范围[-50, 100]
         speech_rate = int((audio_config.speed_ratio - 1.0) * 100)
         loudness_rate = int((audio_config.loudness_ratio - 1.0) * 100)
 
         body = {
-            "user": {"uid": user_config.uid},
+            "user": {"uid": self.app_config.uid},
             "req_params": {
                 "text": text,
                 "speaker": audio_config.voice_type,
@@ -120,9 +75,7 @@ class TTSClient:
         if audio_config.emotion:
             body["req_params"]["audio_params"]["emotion"] = audio_config.emotion
             if audio_config.emotion_scale:
-                body["req_params"]["audio_params"][
-                    "emotion_scale"
-                ] = audio_config.emotion_scale
+                body["req_params"]["audio_params"]["emotion_scale"] = audio_config.emotion_scale
 
         return body
 
@@ -134,7 +87,6 @@ class TTSClient:
         self,
         text: str,
         audio_config: AudioConfig,
-        user_config: Optional[UserConfig] = None,
         unique_id: Optional[str] = None,
     ) -> str:
         """
@@ -143,19 +95,16 @@ class TTSClient:
         Args:
             text: 待合成文本
             audio_config: 音频配置
-            user_config: 用户配置
             unique_id: 唯一标识（可选）
 
         Returns:
             任务ID (task_id)
         """
-        body = self._build_submit_body(text, audio_config, user_config, unique_id)
+        body = self._build_submit_body(text, audio_config, unique_id)
         headers = self._build_headers()
 
         try:
-            response = self.session.post(
-                self.SUBMIT_API, headers=headers, json=body, timeout=30
-            )
+            response = self.session.post(self.SUBMIT_API, headers=headers, json=body, timeout=30)
             response.raise_for_status()
 
             result = response.json()
@@ -193,9 +142,7 @@ class TTSClient:
         headers = self._build_headers()
 
         try:
-            response = self.session.post(
-                self.QUERY_API, headers=headers, json=body, timeout=30
-            )
+            response = self.session.post(self.QUERY_API, headers=headers, json=body, timeout=30)
             response.raise_for_status()
 
             result = response.json()
@@ -260,7 +207,6 @@ class TTSClient:
         self,
         text: str,
         audio_config: AudioConfig,
-        user_config: Optional[UserConfig] = None,
         max_wait_seconds: int = 60,
         poll_interval: float = 2.0,
     ) -> Dict[str, Any]:
@@ -270,51 +216,37 @@ class TTSClient:
         Args:
             text: 待合成文本
             audio_config: 音频配置
-            user_config: 用户配置
             max_wait_seconds: 最大等待时间（秒）
             poll_interval: 轮询间隔（秒）
 
         Returns:
             包含音频URL和元信息的字典
         """
-        import time
-
         # 提交任务
-        task_id = self.async_submit(text, audio_config, user_config)
+        task_id = self.async_submit(text, audio_config)
 
-        print(f"\n⏳ TTS任务已提交: {task_id}")
-        print(f"   最大等待: {max_wait_seconds}秒")
+        # 使用通用轮询器
+        poller = TaskPoller(interval=poll_interval, timeout=max_wait_seconds)
 
-        start_time = time.time()
-        attempt = 0
-
-        while time.time() - start_time < max_wait_seconds:
-            attempt += 1
-            elapsed = time.time() - start_time
-
-            # 查询任务状态
-            result = self.query_task(task_id)
+        def check_status(tid: str) -> Tuple[str, Any, Optional[str]]:
+            result = self.query_task(tid)
             status = result.get("status")
 
-            print(
-                f"\r   [🔄] 第 {attempt} 次查询 | 已等待 {elapsed:.1f}秒 | 状态: {status}",
-                end="",
-                flush=True,
-            )
+            # 映射状态到 TaskPoller 期望的状态
+            # TaskPoller expects: "PENDING", "RUNNING", "PROCESSING", "SUCCEEDED", "FAILED"
+            # query_task returns: "SUCCESS", "PROCESSING", "FAILED", "UNKNOWN"
 
             if status == "SUCCESS":
-                print("\n✓ TTS合成完成！")
-                return result
+                return "SUCCEEDED", result, None
+            elif status == "PROCESSING":
+                return "PROCESSING", None, None
             elif status == "FAILED":
-                print(f"\n✗ TTS合成失败: {result.get('error')}")
-                raise Exception(f"TTS合成失败: {result.get('error')}")
+                return "FAILED", None, result.get("error")
+            else:
+                # UNKNOWN or others
+                return "FAILED", None, f"Unknown status: {status}"
 
-            # 继续等待
-            time.sleep(poll_interval)
-
-        # 超时
-        print(f"\n✗ TTS任务超时（{max_wait_seconds}秒）")
-        raise TimeoutError(f"TTS任务超时: {task_id}")
+        return poller.poll(task_id, check_status)
 
     def save_audio(self, audio_data: bytes, output_path: str):
         """

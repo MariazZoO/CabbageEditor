@@ -13,8 +13,6 @@ from Backend.artificial_intelligence.tools.response_adapter import (
     build_error_result,
 )
 
-# from Backend.artificial_intelligence.storage import get_media_store
-
 
 class ImageGenerationInput(BaseModel):
     """图片生成输入参数

@@ -1,9 +1,5 @@
-# AutoGen core and agent capabilities
-pyautogen
+langchain_core
 dashscope
-
-# AutoGen extensions for OpenAI and MCP
-autogen-ext[openai,mcp]
 
 # Data manipulation
 pandas

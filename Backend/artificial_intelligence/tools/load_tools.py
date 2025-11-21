@@ -27,38 +27,34 @@ def load_tools(config: AIConfig) -> list[BaseTool]:
     return tools
 
 
-def wrap_tool_for_agent(tool_func: Callable[..., str]) -> Callable[..., str]:
+def wrap_tool_for_agent(tool_func: Callable[..., str | dict]) -> Callable[..., str]:
     """
     包装工具函数，使其返回的 interface_type 统一为 "integrated"
 
     Args:
-        tool_func: 原始工具函数（返回 JSON 字符串）
+        tool_func: 原始工具函数（返回 JSON 字符串或字典）
 
     Returns:
-        包装后的函数（返回 interface_type="integrated" 的 JSON）
+        包装后的函数（返回 interface_type="integrated" 的 JSON 字符串）
     """
 
     def wrapped(*args: Any, **kwargs: Any) -> str:
-        # 调用原始工具
-        result_json = tool_func(*args, **kwargs)
+        from Backend.artificial_intelligence.tools.response_adapter import tool_context
 
-        try:
-            # 解析 JSON
-            result_dict = json.loads(result_json)
+        # 使用 Context 注入 interface_type
+        # Context 优先级高于工具内部参数，因此无需后续解析修改
+        with tool_context(interface_type="integrated"):
+            result = tool_func(*args, **kwargs)
 
-            # 修改 interface_type 为 "integrated"
-            if "llm_content" in result_dict and isinstance(
-                result_dict["llm_content"], list
-            ):
-                for content_item in result_dict["llm_content"]:
-                    if isinstance(content_item, dict):
-                        content_item["interface_type"] = "integrated"
+        # 情况 1: 工具返回字典 (新模式 - 推荐)
+        if isinstance(result, dict):
+            return json.dumps(result, ensure_ascii=False)
 
-            # 返回修改后的 JSON
-            return json.dumps(result_dict, ensure_ascii=False)
-        except (json.JSONDecodeError, KeyError, TypeError):
-            # 如果解析失败，返回原始结果
-            return result_json
+        # 情况 2: 工具返回字符串 (旧模式 - 兼容)
+        # 由于 Context 已经注入，如果工具使用了 response_adapter，
+        # 它生成的 JSON 应该已经包含了 interface_type="integrated"。
+        # 所以这里直接返回即可，无需解析。
+        return result
 
     # 保留原函数的元数据（用于 LangChain 工具识别）
     wrapped.__name__ = tool_func.__name__

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from typing import Any, Dict
 
 from Backend.artificial_intelligence.config.ai_config import get_ai_config
@@ -11,6 +10,7 @@ from Backend.artificial_intelligence.service.common import (
     build_success_response,
     session_context,
     extract_parameter,
+    parse_tool_response,
 )
 
 
@@ -99,18 +99,21 @@ def handle_image_generation(payload: Any) -> str:
 
         image_tool = tools[0]
 
-        # 提取参数
-        aspect_ratio = extract_parameter(request_data, "aspect_ratio", "1:1")
-        # 兼容 resolution 参数
-        if not aspect_ratio or aspect_ratio == "1:1":
-            res = extract_parameter(request_data, "resolution")
-            if res:
-                aspect_ratio = res
-
         # 提取图片 URL (禁止使用 parameter)
         images = _extract_images(request_data)
         product_url = images["product_url"]
         scene_url = images["scene_url"]
+
+        # 提取参数：图生图时忽略 aspect_ratio
+        aspect_ratio = "1:1"
+        if not product_url and not scene_url:
+            # 仅文生图时使用 aspect_ratio
+            aspect_ratio = extract_parameter(request_data, "aspect_ratio", "1:1")
+            # 兼容 resolution 参数
+            if not aspect_ratio or aspect_ratio == "1:1":
+                res = extract_parameter(request_data, "resolution")
+                if res:
+                    aspect_ratio = res
 
         with session_context(session_id) as sid:
             result_json = image_tool.func(
@@ -122,7 +125,7 @@ def handle_image_generation(payload: Any) -> str:
             session_id = sid  # 使用实际上下文 session
 
         # 解析 Tool 返回的 Envelope JSON
-        tool_envelope = json.loads(result_json)
+        tool_envelope = parse_tool_response(result_json)
 
         # 检查错误
         if tool_envelope.get("error_code", 0) != 0:

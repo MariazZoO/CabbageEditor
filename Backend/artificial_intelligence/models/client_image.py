@@ -1,42 +1,34 @@
 from __future__ import annotations
 
-import base64
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
 from Backend.artificial_intelligence.config.ai_config import ProviderConfig
-from Backend.artificial_intelligence.models.video_utils import retry_operation
-# from Backend.artificial_intelligence.storage import AUTOSAVE_URL_SCHEME
+from Backend.artificial_intelligence.models.utils import retry_operation, BaseAPIClient
 
 
-class LingyaImageClient:
-    """负责与灵雅图片生成/编辑服务交互的客户端。
+class LingyaImageClient(BaseAPIClient):
+    """负责与灵芽图片生成/编辑服务交互的客户端。
 
     根据是否提供参考图片自动选择纯文本生成或编辑接口。
     """
 
-    def __init__(
-        self, *, provider: ProviderConfig, model: str, base_url: str | None
-    ) -> None:
-        if not provider.api_key:
-            raise RuntimeError(f"Provider '{provider.name}' 缺少 API Key。")
+    def __init__(self, *, provider: ProviderConfig, model: str, base_url: str | None) -> None:
+        super().__init__(provider, base_url)
         self.model = model
-        generation_base = base_url or provider.base_url
-        if not generation_base:
+
+        if not self.base_url:
             raise RuntimeError(f"Provider '{provider.name}' 缺少 base_url。")
-        self.generation_url = generation_base.rstrip("/")
-        configured_base = base_url.rstrip("/") if base_url else None
-        if configured_base and configured_base.endswith("/images/generations"):
+
+        self.generation_url = self.base_url
+
+        # 确定编辑接口 URL
+        if self.generation_url.endswith("/images/generations"):
             self.edit_url = self.generation_url
         else:
-            fallback = provider.base_url or self.generation_url
+            fallback = self.provider.base_url
             self.edit_url = fallback.rstrip("/") if fallback else self.generation_url
-        self.api_key = provider.api_key
-        self.headers = {
-            **(provider.headers or {}),
-            "Authorization": f"Bearer {self.api_key}",
-        }
 
     def generate(
         self,
@@ -71,13 +63,9 @@ class LingyaImageClient:
         return self._parse_response(response.json())
 
     @retry_operation(max_retries=3)
-    def _generate_with_images(
-        self, *, prompt: str, images: List[str]
-    ) -> Tuple[str, str]:
+    def _generate_with_images(self, *, prompt: str, images: List[str]) -> Tuple[str, str]:
         url = self.edit_url.rstrip("/")
-        if not url.endswith("/images/edits") and not url.endswith(
-            "/images/generations"
-        ):
+        if not url.endswith("/images/edits") and not url.endswith("/images/generations"):
             url = f"{url}/images/generations"  # 图生图也用generations接口
         payload = {
             "model": self.model,
@@ -106,9 +94,7 @@ class LingyaImageClient:
             return item["url"], mime
 
         # 不应该走到这里，如果走到这里说明API行为异常
-        raise RuntimeError(
-            "API未按预期返回URL字段。请检查response_format参数是否生效。"
-        )
+        raise RuntimeError("API未按预期返回URL字段。请检查response_format参数是否生效。")
 
     @staticmethod
     def _collect_image_data(
@@ -129,46 +115,10 @@ class LingyaImageClient:
                 images.append(source)
             # 如果是本地路径或autosave URL，转换为base64
             # else:
-                # data = _load_image_as_data_uri(store, source)
+            # data = _load_image_as_data_uri(store, source)
             #     if data:
             #         images.append(data)
         return images
-
-
-# def _load_image_as_data_uri(store, source: str) -> Optional[str]:
-#     """将本地图片转换为data URI格式"""
-#     if not source:
-#         return None
-#     path = _path_from_source(store, source)
-#     if not path or not path.exists():
-#         return None
-
-#     # 读取图片并转换为data URI
-#     image_bytes = path.read_bytes()
-#     b64_data = base64.b64encode(image_bytes).decode("utf-8")
-
-#     # 根据文件扩展名确定MIME类型
-#     suffix = path.suffix.lower()
-#     mime_map = {
-#         ".png": "image/png",
-#         ".jpg": "image/jpeg",
-#         ".jpeg": "image/jpeg",
-#         ".gif": "image/gif",
-#         ".webp": "image/webp",
-#     }
-#     mime_type = mime_map.get(suffix, "image/png")
-
-#     return f"data:{mime_type};base64,{b64_data}"
-
-
-# def _path_from_source(store, source: str):  # 返回 Path 或 None
-#     if source.startswith(AUTOSAVE_URL_SCHEME):
-#         stored = store.resolve_url(source)
-#         return stored.path if stored else None
-#     from pathlib import Path
-
-#     candidate = Path(source)
-#     return candidate if candidate.exists() else None
 
 
 __all__ = ["LingyaImageClient"]

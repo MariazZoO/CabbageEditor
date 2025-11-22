@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
-import requests
+import httpx
 
 from Backend.artificial_intelligence.config.ai_config import ProviderConfig
 from Backend.artificial_intelligence.models.utils import BaseAPIClient, TaskPoller
@@ -105,7 +105,7 @@ class SunoMusicClient(BaseAPIClient):
     def _post_generate(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """发送生成请求"""
         url = f"{self.base_url}/api/v1/generate"
-        resp = requests.post(url, json=payload, headers=self.headers, timeout=60)
+        resp = httpx.post(url, json=payload, headers=self.headers, timeout=60)
         resp.raise_for_status()
         result = resp.json()
 
@@ -117,7 +117,7 @@ class SunoMusicClient(BaseAPIClient):
         """获取任务详情"""
         url = f"{self.base_url}/api/v1/generate/record-info"
         params = {"taskId": task_id}
-        resp = requests.get(url, params=params, headers=self.headers, timeout=60)
+        resp = httpx.get(url, params=params, headers=self.headers, timeout=60)
         resp.raise_for_status()
         result = resp.json()
 

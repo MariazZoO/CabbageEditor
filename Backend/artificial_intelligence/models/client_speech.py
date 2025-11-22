@@ -5,7 +5,7 @@
 
 import uuid
 from typing import Optional, Dict, Any, Tuple
-import requests
+import httpx
 
 from Backend.artificial_intelligence.models.speech_config import (
     AppConfig,
@@ -29,7 +29,7 @@ class TTSClient:
             app_config: 应用配置
         """
         self.app_config = app_config
-        self.session = requests.Session()
+        self.client = httpx.Client()
 
     def _build_headers(self) -> Dict[str, str]:
         """构建请求头 - v3 API格式"""
@@ -104,7 +104,7 @@ class TTSClient:
         headers = self._build_headers()
 
         try:
-            response = self.session.post(self.SUBMIT_API, headers=headers, json=body, timeout=30)
+            response = self.client.post(self.SUBMIT_API, headers=headers, json=body, timeout=30)
             response.raise_for_status()
 
             result = response.json()
@@ -120,7 +120,7 @@ class TTSClient:
 
             return task_id
 
-        except requests.exceptions.RequestException as e:
+        except httpx.RequestError as e:
             raise Exception(f"HTTP request failed: {str(e)}")
 
     def query_task(self, task_id: str) -> Dict[str, Any]:
@@ -142,7 +142,7 @@ class TTSClient:
         headers = self._build_headers()
 
         try:
-            response = self.session.post(self.QUERY_API, headers=headers, json=body, timeout=30)
+            response = self.client.post(self.QUERY_API, headers=headers, json=body, timeout=30)
             response.raise_for_status()
 
             result = response.json()
@@ -196,7 +196,7 @@ class TTSClient:
                     "code": code,
                 }
 
-        except requests.exceptions.RequestException as e:
+        except httpx.RequestError as e:
             return {
                 "status": "FAILED",
                 "task_id": task_id,

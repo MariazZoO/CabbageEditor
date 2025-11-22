@@ -77,16 +77,7 @@ class AIService(QObject):
     def send_message_to_ai(self, ai_message: str) -> None:
         """
         发送消息到 AI（使用协程异步处理）
-
-        前端消息格式:
-        {
-            "message": "用户文本",
-            "session_id": "session_xxx",
-            "images": [
-                {"url": "https://...", "type": "product"},
-                {"data": "base64...", "type": "scene"}
-            ]
-        }
+        前端需发送符合 llms.txt 定义的标准 JSON 结构 (包含 llm_content)
         """
         task = self._loop.create_task(self._process_ai_message(ai_message))
         self._active_tasks.add(task)
@@ -133,76 +124,12 @@ class AIService(QObject):
             if isinstance(msg_data, dict):
                 metadata = msg_data.get("metadata", {})
 
-            error_payload = build_error_response(
-                interface_type="integrated",
-                session_id=msg_data.get("session_id") if isinstance(msg_data, dict) else None,
-                exc=exc,
-                metadata=metadata
-            )
-            self.ai_response.emit(error_payload)
-
-    @Slot(str)
-    def upload_image(self, payload: str) -> None:
-        """
-        上传图片（现在通过统一的 handle_chat 接口处理）
-
-        前端消息格式:
-        {
-            "message": "",  // 可选的文本消息
-            "session_id": "session_xxx",
-            "images": [
-                {
-                    "data": "base64...",
-                    "name": "image.png",
-                    "type": "product"  // category: product | scene
-                }
-            ],
-            "token": "token_xxx"  // 可选，用于前端追踪
-        }
-        """
-        task = self._loop.create_task(self._process_image_upload(payload))
-        self._active_tasks.add(task)
-        task.add_done_callback(self._active_tasks.discard)
-
-    async def _process_image_upload(self, payload: str) -> None:
-        try:
-            data = json.loads(payload)
-        except json.JSONDecodeError:
-            data = {}
-
-        # 转换旧格式到新格式
-        if "data" in data and "images" not in data:
-            # 旧格式：单个图片的 data/name/type 直接在根层级
-            data = {
-                "message": data.get("message", ""),
-                "session_id": data.get("session_id"),
-                "images": [
-                    {
-                        "data": data.get("data"),
-                        "name": data.get("name", "upload.png"),
-                        "type": data.get("type", "product"),
-                    }
-                ],
-            }
-
-        token = data.pop("token", None)  # 保存 token 用于响应
-        if token:
-            if "metadata" not in data:
-                data["metadata"] = {}
-            data["metadata"]["token"] = token
-
-        try:
-            result = await self._loop.run_in_executor(self._executor, handle_integrated_entrance, data)
-            self.ai_response.emit(result)
-        except BaseException as exc:
-            # 构造 metadata 用于错误响应
-            metadata = {}
             if token:
                 metadata["token"] = token
 
             error_payload = build_error_response(
                 interface_type="integrated",
-                session_id=data.get("session_id"),
+                session_id=msg_data.get("session_id") if isinstance(msg_data, dict) else None,
                 exc=exc,
                 metadata=metadata
             )

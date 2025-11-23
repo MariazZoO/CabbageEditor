@@ -73,103 +73,104 @@ def main():
     # 检查配置
     config = get_ai_config()
     print(f"Loaded AI Config. Providers: {list(config.providers.keys())}")
+    session_id = f"test_session_{int(time.time())}"
 
-    session_id = f"test_session_{int(time.time())}"  # 1. 文本生成测试
-    text_payload = {
-        "session_id": session_id,
-        "llm_content": [
-            {
-                "role": "user",
-                "part": [
-                    {
-                        "content_type": "text",
-                        "content_text": "请为一款名为'星际咖啡'的咖啡品牌写一句广告语，要体现未来感。",
-                    }
-                ],
-            }
-        ],
-        "metadata": {},
-    }
-    text_result = run_service_test(
-        "Text Generation", handle_text_generation, text_payload
-    )
+    # # 1. 文本生成测试
+    # text_payload = {
+    #     "session_id": session_id,
+    #     "llm_content": [
+    #         {
+    #             "role": "user",
+    #             "part": [
+    #                 {
+    #                     "content_type": "text",
+    #                     "content_text": "请为一款名为'星际咖啡'的咖啡品牌写一句广告语，要体现未来感。",
+    #                 }
+    #             ],
+    #         }
+    #     ],
+    #     "metadata": {},
+    # }
+    # run_service_test(
+    #     "Text Generation", handle_text_generation, text_payload
+    # )
 
-    # 2. 图像生成测试
-    image_payload = {
-        "session_id": session_id,
-        "llm_content": [
-            {
-                "role": "user",
-                "part": [
-                    {
-                        "content_type": "text",
-                        "content_text": "一个漂浮在太空中的未来咖啡馆，透过巨大的玻璃窗可以看到绚丽的星云，赛博朋克风格，高清晰度",
-                        "parameter": {"resolution": "1:1", "style": "cyberpunk"},
-                    }
-                ],
-            }
-        ],
-        "metadata": {},
-    }
-    image_result = run_service_test(
-        "Image Generation", handle_image_generation, image_payload
-    )
+    # # 2. 图像生成测试
+    # image_payload = {
+    #     "session_id": session_id,
+    #     "llm_content": [
+    #         {
+    #             "role": "user",
+    #             "part": [
+    #                 {
+    #                     "content_type": "text",
+    #                     "content_text": "一个漂浮在太空中的未来咖啡馆，透过巨大的玻璃窗可以看到绚丽的星云，赛博朋克风格，高清晰度",
+    #                     "parameter": {"resolution": "1:1", "style": "cyberpunk"},
+    #                 }
+    #             ],
+    #         }
+    #     ],
+    #     "metadata": {},
+    # }
+    # image_result = run_service_test(
+    #     "Image Generation", handle_image_generation, image_payload
+    # )
 
-    generated_image_url = None
-    if image_result and image_result.get("llm_content"):
-        parts = image_result["llm_content"][0].get("part", [])
-        if parts:
-            generated_image_url = parts[0].get("content_url")
-            print(f"\nGot Generated Image URL: {generated_image_url}")
+    # generated_image_url = None
+    # if image_result and image_result.get("llm_content"):
+    #     parts = image_result["llm_content"][0].get("part", [])
+    #     if parts:
+    #         generated_image_url = parts[0].get("content_url")
+    #         print(f"\nGot Generated Image URL: {generated_image_url}")
 
-    # 3. 视频生成测试 (依赖图像)
-    if generated_image_url:
-        video_payload = {
-            "session_id": session_id,
-            "llm_content": [
-                {
-                    "role": "user",
-                    "part": [
-                        {
-                            "content_type": "text",
-                            "content_text": "镜头缓慢推进，可以看到咖啡馆里的机器人在忙碌，星云在背景中缓慢流动",
-                            "parameter": {
-                                "resolution": "720P",
-                            },
-                        },
-                        {
-                            "content_type": "image",
-                            "content_url": generated_image_url,
-                        },
-                    ],
-                }
-            ],
-            "metadata": {},
-        }
-        run_service_test("Video Generation", handle_video_generation, video_payload)
-    else:
-        print_separator("Skipping Video Generation (No Image Generated)")
+    # # 3. 视频生成测试 (依赖图像)
+    # if generated_image_url:
+    #     video_payload = {
+    #         "session_id": session_id,
+    #         "llm_content": [
+    #             {
+    #                 "role": "user",
+    #                 "part": [
+    #                     {
+    #                         "content_type": "text",
+    #                         "content_text": "镜头缓慢推进，可以看到咖啡馆里的机器人在忙碌，星云在背景中缓慢流动",
+    #                         "parameter": {
+    #                             "resolution": "720P",
+    #                         },
+    #                     },
+    #                     {
+    #                         "content_type": "image",
+    #                         "content_url": generated_image_url,
+    #                     },
+    #                 ],
+    #             }
+    #         ],
+    #         "metadata": {},
+    #     }
+    #     run_service_test("Video Generation", handle_video_generation, video_payload)
+    # else:
+    #     print_separator("Skipping Video Generation (No Image Generated)")
 
-    # 4. 语音生成测试
-    speech_payload = {
-        "session_id": session_id,
-        "llm_content": [
-            {
-                "role": "user",
-                "part": [
-                    {
-                        "content_type": "text",
-                        "content_text": "欢迎来到星际咖啡，品味来自银河系的味道。",
-                        "parameter": {
-                            "timbre": "male_tech"  # 假设的音色参数，具体取决于实现
-                        },
-                    }
-                ],
-            }
-        ],
-        "metadata": {},
-    }
-    run_service_test("Speech Generation", handle_speech_generation, speech_payload)
+    # # 4. 语音生成测试
+    # speech_payload = {
+    #     "session_id": session_id,
+    #     "llm_content": [
+    #         {
+    #             "role": "user",
+    #             "part": [
+    #                 {
+    #                     "content_type": "text",
+    #                     "content_text": "欢迎来到星际咖啡，品味来自银河系的味道。",
+    #                     "parameter": {
+    #                         "timbre": "male_tech"  # 假设的音色参数，具体取决于实现
+    #                     },
+    #                 }
+    #             ],
+    #         }
+    #     ],
+    #     "metadata": {},
+    # }
+    # run_service_test("Speech Generation", handle_speech_generation, speech_payload)
 
     # 5. 综合对话测试
     integrated_payload = {
@@ -191,24 +192,24 @@ def main():
         "Integrated Dialogue", handle_integrated_entrance, integrated_payload
     )
 
-    # 6. 音乐生成测试
-    music_payload = {
-        "session_id": session_id,
-        "llm_content": [
-            {
-                "role": "user",
-                "part": [
-                    {
-                        "content_type": "text",
-                        "content_text": "轻松的爵士乐，带有未来感的电子音效，适合咖啡馆背景音乐",
-                        "parameter": {"duration": 15},
-                    }
-                ],
-            }
-        ],
-        "metadata": {},
-    }
-    run_service_test("Music Generation", handle_music_generation, music_payload)
+    # # 6. 音乐生成测试
+    # music_payload = {
+    #     "session_id": session_id,
+    #     "llm_content": [
+    #         {
+    #             "role": "user",
+    #             "part": [
+    #                 {
+    #                     "content_type": "text",
+    #                     "content_text": "轻松的爵士乐，带有未来感的电子音效，适合咖啡馆背景音乐",
+    #                     "parameter": {"duration": 15},
+    #                 }
+    #             ],
+    #         }
+    #     ],
+    #     "metadata": {},
+    # }
+    # run_service_test("Music Generation", handle_music_generation, music_payload)
 
 
 if __name__ == "__main__":

@@ -18,7 +18,7 @@ def tool_context(interface_type: str | None = None, session_id: str | None = Non
     """
     工具执行上下文管理器。
     在调用工具前设置此上下文，工具内部即可自动获取 interface_type 和 session_id。
-    
+
     Usage:
         with tool_context(interface_type="integrated", session_id="123"):
             result = tool_func(...)
@@ -28,7 +28,7 @@ def tool_context(interface_type: str | None = None, session_id: str | None = Non
         tokens[_interface_type_ctx] = _interface_type_ctx.set(interface_type)
     if session_id is not None:
         tokens[_session_id_ctx] = _session_id_ctx.set(session_id)
-    
+
     try:
         yield
     finally:
@@ -50,6 +50,8 @@ def build_part(
     }
     if content_text is not None:
         part["content_text"] = content_text
+    else:
+        part["content_text"] = ""
     if content_url is not None:
         part["content_url"] = content_url
     if url_expire_time is not None:
@@ -154,42 +156,10 @@ def build_error_result(
     )
 
 
-# 兼容旧接口：直接构建最终 JSON（用于独立接口调用）
-def build_llm_tool_response(
-    *,
-    interface_type: str | None = None,
-    parts: List[Dict[str, Any]],
-    error_code: int = 0,
-    status_info: str = "success",
-    role: str = "tools",
-    metadata: Dict[str, Any] | None = None,
-    session_id: str | None = None,
-) -> str:
-    """直接构建最终 envelope"""
-    result = ToolResult(
-        parts=parts, metadata=metadata, error_code=error_code, status_info=status_info
-    )
-    return result.to_envelope(interface_type=interface_type, session_id=session_id, role=role)
-
-
-def build_error_response(
-    *,
-    error_message: str,
-    interface_type: str | None = None,
-    error_code: int = 1,
-    metadata: Dict[str, Any] | None = None,
-) -> str:
-    """直接构建错误 envelope"""
-    result = build_error_result(error_message=error_message, error_code=error_code, metadata=metadata)
-    return result.to_envelope(interface_type=interface_type)
-
-
 __all__ = [
     "tool_context",
     "build_part",
     "ToolResult",
     "build_success_result",
     "build_error_result",
-    "build_llm_tool_response",
-    "build_error_response",
 ]

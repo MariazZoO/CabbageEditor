@@ -1,13 +1,8 @@
-"""
-Agent 统一接口
-对外暴露的唯一入口
-"""
+# file: Backend/artificial_intelligence/agent/interface.py
 
 from __future__ import annotations
-
-from typing import Any, Dict
-
-from langchain_core.messages import HumanMessage
+from typing import Any, Dict, List
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 
 from Backend.artificial_intelligence.agent.executor import run_agent, fallback_completion
 from Backend.artificial_intelligence.agent.conversation import (
@@ -17,8 +12,10 @@ from Backend.artificial_intelligence.agent.conversation import (
 )
 from Backend.artificial_intelligence.agent.protocol import (
     extract_session_id,
-    build_user_message,
     extract_assistant_messages,
+    extract_user_parts,
+    wrap_part_as_tool_message,
+    USE_ARTIFICIAL_TOOL_FOR_MEDIA,
 )
 from Backend.artificial_intelligence.service.context import (
     reset_current_session,
@@ -27,48 +24,70 @@ from Backend.artificial_intelligence.service.context import (
 
 
 def process_chat_request(payload: Any) -> Dict[str, Any]:
-    """
-    处理聊天请求的核心逻辑
-
-    Args:
-        payload: 前端请求数据
-
-    Returns:
-        包含 messages, session_id, pending_history 的字典
-    """
-    # 提取 session_id 和历史记录
+    # 1. 提取 Session ID
     session_id = extract_session_id(payload, default_session_id())
     stored_history = get_history(session_id)
 
-    # 构建当前用户消息
-    content = build_user_message(payload)
+    # 2. 获取原始输入 parts
+    raw_parts = extract_user_parts(payload)
+
+    human_content_blocks: List[Dict[str, Any]] = []
+    artificial_tool_messages: List[ToolMessage] = []
+
+    # 3. 分流处理
+    for part in raw_parts:
+        c_type = part.get("content_type")
+
+        if c_type == "text":
+            text = part.get("content_text", "").strip()
+            if text:
+                human_content_blocks.append({"type": "text", "text": text})
+
+        elif c_type in ["image", "video", "audio"]:
+            url = part.get("content_url")
+            if url:
+                if USE_ARTIFICIAL_TOOL_FOR_MEDIA:
+                    # [修正] 传入 session_id，确保伪造工具消息的上下文正确
+                    tool_msg = wrap_part_as_tool_message(part, session_id)
+                    artificial_tool_messages.append(tool_msg)
+                else:
+                    if c_type == "image":
+                        human_content_blocks.append(
+                            {"type": "image_url", "image_url": {"url": url}}
+                        )
+
+    if not human_content_blocks:
+        human_content_blocks.append({"type": "text", "text": "[Attachment Uploaded]"})
+
+    current_human_message = HumanMessage(content=human_content_blocks)
+
     pending_history = [
         *stored_history,
-        HumanMessage(content=content),
+        *artificial_tool_messages,
+        current_human_message,
     ]
 
-    # 在 session 上下文中运行 agent
     token = set_current_session(session_id)
     try:
         state = run_agent(pending_history)
     finally:
         reset_current_session(token)
 
-    # 提取返回的消息
     messages = state.get("messages", [])
 
-    # 提取 AIMessage 并更新历史
     history_extension = extract_assistant_messages(messages)
+
+    new_entries = [*artificial_tool_messages, current_human_message]
+
     if history_extension:
-        update_history(session_id, [*pending_history, *history_extension])
+        new_entries.extend(history_extension)
+        update_history(session_id, [*stored_history, *new_entries])
     else:
-        # 如果没有 AIMessage，使用 fallback
         fallback_text = fallback_completion(pending_history)
         if fallback_text:
-            from langchain_core.messages import AIMessage
-
             history_extension = [AIMessage(content=fallback_text)]
-            update_history(session_id, [*pending_history, *history_extension])
+            new_entries.extend(history_extension)
+            update_history(session_id, [*stored_history, *new_entries])
 
     return {
         "messages": messages,
@@ -77,6 +96,4 @@ def process_chat_request(payload: Any) -> Dict[str, Any]:
     }
 
 
-__all__ = [
-    "process_chat_request",
-]
+__all__ = ["process_chat_request"]

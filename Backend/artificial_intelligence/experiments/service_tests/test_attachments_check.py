@@ -105,10 +105,10 @@ class TestAttachmentFunctionality(unittest.TestCase):
             ],
         }
 
-        # 模拟 Agent 的执行轨迹: ToolMessage -> AIMessage
+        # 模拟 Agent 的执行轨迹: AIMessage -> ToolMessage
         mock_messages = [
-            ToolMessage(content=json.dumps(tool_envelope), tool_call_id="call_x", name="gen_img"),
             AIMessage(content="图片已生成。"),
+            ToolMessage(content=json.dumps(tool_envelope), tool_call_id="call_x", name="gen_img"),
         ]
 
         mock_process.return_value = {

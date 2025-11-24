@@ -45,6 +45,84 @@ STATIC_IMAGE_DIR = os.path.join(PROJECT_ROOT, "static", "images")
 os.makedirs(STATIC_IMAGE_DIR, exist_ok=True)
 
 
+# ========================
+# 请求验证和日志中间件
+# ========================
+
+@app.before_request
+def before_request_middleware():
+    """请求前验证和日志记录"""
+    # 记录请求基本信息
+    logging.info(
+        f"[请求] {request.method} {request.path} | "
+        f"来源IP: {request.remote_addr} | "
+        f"Content-Type: {request.headers.get('Content-Type', 'N/A')} | "
+        f"User-Agent: {request.headers.get('User-Agent', 'N/A')[:50]}"
+    )
+
+    # 跳过健康检查端点的验证
+    if request.path == '/healthz':
+        return None
+
+    # 对于 POST 请求，验证 Content-Type
+    if request.method == 'POST' and request.path.startswith('/api/'):
+        content_type = request.headers.get('Content-Type', '')
+
+        # 验证 Content-Type 必须包含 application/json
+        if 'application/json' not in content_type:
+            logging.warning(
+                f"[请求被拒绝] 无效的 Content-Type: '{content_type}' | "
+                f"路径: {request.path} | 来源: {request.remote_addr} | "
+                f"期望: application/json"
+            )
+            return jsonify({
+                "code": 400,
+                "msg": "Invalid Content-Type",
+                "detail": "Content-Type must be 'application/json'",
+                "received": content_type
+            }), 400
+
+        # 记录请求体大小
+        content_length = request.headers.get('Content-Length', '0')
+        logging.info(f"[请求体] 大小: {content_length} bytes")
+
+        # 可选：限制请求体大小（例如 10MB）
+        max_size = 10 * 1024 * 1024  # 10MB
+        try:
+            if int(content_length) > max_size:
+                logging.warning(
+                    f"[请求被拒绝] 请求体过大: {content_length} bytes | "
+                    f"最大允许: {max_size} bytes | 路径: {request.path}"
+                )
+                return jsonify({
+                    "code": 413,
+                    "msg": "Payload Too Large",
+                    "detail": f"Request body exceeds maximum size of {max_size} bytes",
+                    "size": int(content_length)
+                }), 413
+        except ValueError:
+            pass  # Content-Length 不是有效数字，忽略
+
+
+@app.after_request
+def after_request_middleware(response):
+    """响应后日志记录"""
+    # 计算响应大小
+    response_size = response.content_length or 0
+    if response_size == 0 and hasattr(response, 'get_data'):
+        try:
+            response_size = len(response.get_data())
+        except Exception:
+            response_size = 0
+
+    logging.info(
+        f"[响应] {request.method} {request.path} | "
+        f"状态码: {response.status_code} | "
+        f"响应大小: {response_size} bytes"
+    )
+    return response
+
+
 def _public_ip_from_request() -> str:
     # 优先使用环境变量（容器/云环境建议配置）
     public_ip = os.getenv("PUBLIC_IP")
@@ -67,62 +145,74 @@ def healthz():
 @app.post("/api/ai/message")
 def api_ai_message():
     if not AI_AVAILABLE:
+        logging.error("[API: message] AI 服务未加载")
         return jsonify({"code": 503, "msg": "AI 服务未加载，无法处理 message"}), 503
+
+    payload = {}
     try:
         payload = request.get_json(silent=True) or {}
+        session_id = payload.get("session_id", "未知")
+        llm_content = payload.get("llm_content", [])
+
+        logging.info(
+            f"[API: message] session_id: {session_id} | "
+            f"消息条数: {len(llm_content)}"
+        )
+
         # 使用统一的 handle_chat 接口（返回的是 JSON 字符串）
+        logging.debug("[API: message] 调用 handle_integrated_entrance...")
         result_str = handle_integrated_entrance(payload)
+        logging.info(f"[API: message] 处理成功 | session_id: {session_id}")
         return Response(result_str, status=200, mimetype="application/json")
     except Exception as e:  # noqa: BLE001
-        logging.exception("/api/ai/message 失败: %s", e)
+        logging.exception(
+            f"[API: message] 处理失败 | session_id: {payload.get('session_id', '未知')} | "
+            f"错误: {e}"
+        )
         return jsonify({"code": 500, "msg": f"服务器错误：{e}"}), 500
 
 
 @app.post("/api/ai/generate-image")
 def api_ai_generate_image():
     if not AI_AVAILABLE:
+        logging.error("[API: generate-image] AI 服务未加载")
         return jsonify({"code": 503, "msg": "AI 服务未加载，无法生成图片"}), 503
+
+    payload = {}
     try:
         payload = request.get_json(silent=True) or {}
+        session_id = payload.get("session_id", "未知")
+        llm_content = payload.get("llm_content", [])
+
+        logging.info(
+            f"[API: generate-image] session_id: {session_id} | "
+            f"llm_content 条数: {len(llm_content)}"
+        )
+
+        # 详细记录 llm_content 的结构（用于调试）
+        if llm_content:
+            for idx, content in enumerate(llm_content):
+                parts = content.get("part", [])
+                logging.debug(f"[API: generate-image] llm_content[{idx}] | part 条数: {len(parts)}")
+                for part_idx, part in enumerate(parts):
+                    content_type = part.get("content_type", "")
+                    content_text = part.get("content_text", "")[:50]  # 只记录前50字符
+                    content_url = part.get("content_url", "")
+                    if content_text or content_url:
+                        logging.debug(
+                            f"[API: generate-image]   part[{part_idx}] | type: {content_type} | "
+                            f"text: '{content_text}' | url: {'有' if content_url else '无'}"
+                        )
+
+        logging.debug("[API: generate-image] 调用 handle_image_generation...")
         result_str = handle_image_generation(payload)
+        logging.info(f"[API: generate-image] 生成成功 | session_id: {session_id}")
         return Response(result_str, status=200, mimetype="application/json")
     except Exception as e:  # noqa: BLE001
-        logging.exception("/api/ai/generate-image 失败: %s", e)
-        return jsonify({"code": 500, "msg": f"服务器错误：{e}"}), 500
-
-
-@app.post("/api/ai/upload-image")
-def api_ai_upload_image():
-    if not AI_AVAILABLE:
-        return jsonify({"code": 503, "msg": "AI 服务未加载，无法上传图片"}), 503
-    try:
-        if "file" not in request.files:
-            return jsonify({"code": 400, "msg": "缺少文件字段 'file' (multipart/form-data)"}), 400
-        f = request.files["file"]
-        import base64
-        data = base64.b64encode(f.read()).decode('utf-8')
-        category = request.form.get("category") or "product"
-        message = request.form.get("message") or ""
-        session_id = request.form.get("session_id") or None
-        
-        # 使用统一的 handle_integrated_entrance 接口格式
-        payload = {
-            "message": message,
-            "images": [
-                {
-                    "name": f.filename or "upload.bin",
-                    "type": category,
-                    "data": data
-                }
-            ]
-        }
-        if session_id:
-            payload["session_id"] = session_id
-        
-        result_str = handle_integrated_entrance(payload)
-        return Response(result_str, status=200, mimetype="application/json")
-    except Exception as e:  # noqa: BLE001
-        logging.exception("/api/ai/upload-image 失败: %s", e)
+        logging.exception(
+            f"[API: generate-image] 生成失败 | session_id: {payload.get('session_id', '未知')} | "
+            f"错误: {e}"
+        )
         return jsonify({"code": 500, "msg": f"服务器错误：{e}"}), 500
 
 
@@ -130,13 +220,29 @@ def api_ai_upload_image():
 def api_ai_generate_video():
     """图生视频 API"""
     if not AI_AVAILABLE:
+        logging.error("[API: generate-video] AI 服务未加载")
         return jsonify({"code": 503, "msg": "AI 服务未加载，无法生成视频"}), 503
+
+    payload = {}
     try:
         payload = request.get_json(silent=True) or {}
+        session_id = payload.get("session_id", "未知")
+        llm_content = payload.get("llm_content", [])
+
+        logging.info(
+            f"[API: generate-video] session_id: {session_id} | "
+            f"llm_content 条数: {len(llm_content)}"
+        )
+
+        logging.debug("[API: generate-video] 调用 handle_video_generation...")
         result_str = handle_video_generation(payload)
+        logging.info(f"[API: generate-video] 生成成功 | session_id: {session_id}")
         return Response(result_str, status=200, mimetype="application/json")
     except Exception as e:  # noqa: BLE001
-        logging.exception("/api/ai/generate-video 失败: %s", e)
+        logging.exception(
+            f"[API: generate-video] 生成失败 | session_id: {payload.get('session_id', '未知')} | "
+            f"错误: {e}"
+        )
         return jsonify({"code": 500, "msg": f"服务器错误：{e}"}), 500
 
 
@@ -144,13 +250,29 @@ def api_ai_generate_video():
 def api_ai_generate_text():
     """文案生成 API（产品/营销/创意文案）"""
     if not AI_AVAILABLE:
+        logging.error("[API: generate-text] AI 服务未加载")
         return jsonify({"code": 503, "msg": "AI 服务未加载，无法生成文案"}), 503
+
+    payload = {}
     try:
         payload = request.get_json(silent=True) or {}
+        session_id = payload.get("session_id", "未知")
+        llm_content = payload.get("llm_content", [])
+
+        logging.info(
+            f"[API: generate-text] session_id: {session_id} | "
+            f"llm_content 条数: {len(llm_content)}"
+        )
+
+        logging.debug("[API: generate-text] 调用 handle_text_generation...")
         result_str = handle_text_generation(payload)
+        logging.info(f"[API: generate-text] 生成成功 | session_id: {session_id}")
         return Response(result_str, status=200, mimetype="application/json")
     except Exception as e:  # noqa: BLE001
-        logging.exception("/api/ai/generate-text 失败: %s", e)
+        logging.exception(
+            f"[API: generate-text] 生成失败 | session_id: {payload.get('session_id', '未知')} | "
+            f"错误: {e}"
+        )
         return jsonify({"code": 500, "msg": f"服务器错误：{e}"}), 500
 
 
@@ -158,13 +280,29 @@ def api_ai_generate_text():
 def api_ai_generate_speech():
     """TTS 语音合成 API"""
     if not AI_AVAILABLE:
+        logging.error("[API: generate-speech] AI 服务未加载")
         return jsonify({"code": 503, "msg": "AI 服务未加载，无法生成语音"}), 503
+
+    payload = {}
     try:
         payload = request.get_json(silent=True) or {}
+        session_id = payload.get("session_id", "未知")
+        llm_content = payload.get("llm_content", [])
+
+        logging.info(
+            f"[API: generate-speech] session_id: {session_id} | "
+            f"llm_content 条数: {len(llm_content)}"
+        )
+
+        logging.debug("[API: generate-speech] 调用 handle_speech_generation...")
         result_str = handle_speech_generation(payload)
+        logging.info(f"[API: generate-speech] 生成成功 | session_id: {session_id}")
         return Response(result_str, status=200, mimetype="application/json")
     except Exception as e:  # noqa: BLE001
-        logging.exception("/api/ai/generate-speech 失败: %s", e)
+        logging.exception(
+            f"[API: generate-speech] 生成失败 | session_id: {payload.get('session_id', '未知')} | "
+            f"错误: {e}"
+        )
         return jsonify({"code": 500, "msg": f"服务器错误：{e}"}), 500
 
 
@@ -172,13 +310,29 @@ def api_ai_generate_speech():
 def api_ai_generate_music():
     """BGM 音乐生成 API"""
     if not AI_AVAILABLE:
+        logging.error("[API: generate-music] AI 服务未加载")
         return jsonify({"code": 503, "msg": "AI 服务未加载，无法生成音乐"}), 503
+
+    payload = {}
     try:
         payload = request.get_json(silent=True) or {}
+        session_id = payload.get("session_id", "未知")
+        llm_content = payload.get("llm_content", [])
+
+        logging.info(
+            f"[API: generate-music] session_id: {session_id} | "
+            f"llm_content 条数: {len(llm_content)}"
+        )
+
+        logging.debug("[API: generate-music] 调用 handle_music_generation...")
         result_str = handle_music_generation(payload)
+        logging.info(f"[API: generate-music] 生成成功 | session_id: {session_id}")
         return Response(result_str, status=200, mimetype="application/json")
     except Exception as e:  # noqa: BLE001
-        logging.exception("/api/ai/generate-music 失败: %s", e)
+        logging.exception(
+            f"[API: generate-music] 生成失败 | session_id: {payload.get('session_id', '未知')} | "
+            f"错误: {e}"
+        )
         return jsonify({"code": 500, "msg": f"服务器错误：{e}"}), 500
 
 

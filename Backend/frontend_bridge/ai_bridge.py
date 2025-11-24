@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+
 # import time
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -8,6 +9,8 @@ from PySide6.QtCore import QObject, Signal, Slot, QTimer
 from Backend.artificial_intelligence.service import handle_integrated_entrance
 from Backend.artificial_intelligence.service.common import build_error_response
 from Backend.artificial_intelligence.config.ai_config import get_ai_config
+
+from Backend.local_storage import payload_processor
 
 from Backend.artificial_intelligence.models import get_chat_model
 from Backend.utils import get_logger
@@ -97,23 +100,27 @@ class AIService(QObject):
                 if isinstance(meta_in, dict) and "token" in meta_in:
                     token = meta_in.pop("token") or token
 
+            payload = payload_processor.process_input_payload(payload)
+
             # 在线程池中执行阻塞的 AI 调用
             result = await self._loop.run_in_executor(
                 self._executor, handle_integrated_entrance, payload
             )
 
             # 若有 token，仅在回传给前端时复用，用于本地匹配，不进入实际 AI 请求/响应格式
+            try:
+                result_obj = json.loads(result)
+                result_obj = payload_processor.process_output_payload(result_obj)
+                print("AI 处理后响应：", result_obj)
+            except Exception as e:
+                return ValueError(f"后处理错误：{e}")
+            metadata = result_obj.get("metadata")
+            if not isinstance(metadata, dict):
+                metadata = {}
+                result_obj["metadata"] = metadata
             if token:
-                try:
-                    result_obj = json.loads(result)
-                except Exception:
-                    result_obj = {"content": result}
-                metadata = result_obj.get("metadata")
-                if not isinstance(metadata, dict):
-                    metadata = {}
-                    result_obj["metadata"] = metadata
                 metadata["token"] = token
-                result = json.dumps(result_obj, ensure_ascii=False)
+            result = json.dumps(result_obj, ensure_ascii=False)
 
             # 发送响应信号
             self.ai_response.emit(result)
@@ -129,9 +136,11 @@ class AIService(QObject):
 
             error_payload = build_error_response(
                 interface_type="integrated",
-                session_id=msg_data.get("session_id") if isinstance(msg_data, dict) else None,
+                session_id=(
+                    msg_data.get("session_id") if isinstance(msg_data, dict) else None
+                ),
                 exc=exc,
-                metadata=metadata
+                metadata=metadata,
             )
             self.ai_response.emit(error_payload)
 

@@ -56,6 +56,22 @@
                   <div class="text-xs text-gray-500 mt-1 truncate">{{ img.name }}</div>
                 </div>
               </div>
+
+              <!-- 视频显示 -->
+              <div v-if="message.videos && message.videos.length > 0" class="flex flex-wrap gap-2 mt-2">
+                <div v-for="(vid, vIdx) in message.videos" :key="vIdx" class="max-w-sm w-full">
+                  <video :src="vid.url" controls class="rounded border max-h-60 w-full bg-black"></video>
+                  <div class="text-xs text-gray-500 mt-1 truncate">{{ vid.name || '视频' }}</div>
+                </div>
+              </div>
+
+              <!-- 音频显示 -->
+              <div v-if="message.audios && message.audios.length > 0" class="flex flex-col gap-2 mt-2">
+                <div v-for="(aud, aIdx) in message.audios" :key="aIdx" class="w-full">
+                  <audio :src="aud.url" controls class="w-full"></audio>
+                  <div class="text-xs text-gray-500 mt-1 truncate">{{ aud.name || '音频' }}</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -196,7 +212,20 @@ const messages = ref([
 ]);
 const userInput = ref('');
 const chatHistoryRef = ref(null);
+// sessionId 由前端负责生成，后端仅作兜底
 const sessionId = ref(null);
+
+// 生成随机 session id（优先使用 crypto.randomUUID）
+function ensureSessionId() {
+  if (sessionId.value) return sessionId.value;
+  try {
+    // 现代浏览器支持 crypto.randomUUID()
+    sessionId.value = (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : `sid_${Date.now()}_${Math.floor(Math.random()*1e6)}`;
+  } catch (e) {
+    sessionId.value = `sid_${Date.now()}_${Math.floor(Math.random()*1e6)}`;
+  }
+  return sessionId.value;
+}
 const isSending = ref(false); // 发送状态
 const sendTimeout = ref(null); // 发送超时定时器
 const MESSAGE_TIMEOUT = 30000; // 30秒超时
@@ -353,6 +382,9 @@ const SendMessageToAI = async (query, extra = {}) => {
     });
   }
 
+  // 确保 session_id 已生成
+  ensureSessionId();
+
   const payloadObj = {
     session_id: sessionId.value,
     llm_content: [
@@ -443,6 +475,9 @@ const sendMessage = async () => {
   });
 
   const extra = {session_id: sessionId.value};
+  // 确保 session_id 在发送时存在
+  ensureSessionId();
+  extra.session_id = sessionId.value;
   if (imagesToSend.length > 0) {
     extra.images = imagesToSend.map(img => ({
       name: img.name,
@@ -548,6 +583,8 @@ window.receiveAIMessage = (data) => {
         if (content.role === 'assistant') {
           let textContent = "";
           let images = [];
+          let videos = [];
+          let audios = [];
           
           if (content.part && Array.isArray(content.part)) {
             content.part.forEach(part => {
@@ -557,6 +594,16 @@ window.receiveAIMessage = (data) => {
                 images.push({
                   preview: part.content_url, // 或者是 base64
                   name: 'image'
+                });
+              } else if (part.content_type === 'video') {
+                videos.push({
+                  url: part.content_url,
+                  name: 'video'
+                });
+              } else if (part.content_type === 'audio') {
+                audios.push({
+                  url: part.content_url,
+                  name: 'audio'
                 });
               }
             });
@@ -574,9 +621,12 @@ window.receiveAIMessage = (data) => {
           } else if (images.length > 1) {
             msgObj.images = images;
           }
+
+          if (videos.length > 0) msgObj.videos = videos;
+          if (audios.length > 0) msgObj.audios = audios;
           
-          // 如果既没有文本也没有图片，可能是空响应或纯指令
-          if (!msgObj.text && !msgObj.imageData && !msgObj.images) {
+          // 如果既没有文本也没有媒体内容，可能是空响应或纯指令
+          if (!msgObj.text && !msgObj.imageData && !msgObj.images && !msgObj.videos && !msgObj.audios) {
              // 忽略空消息
              return;
           }

@@ -266,7 +266,7 @@ class TaskPoller:
         icon = status_icons.get(status, "[?]")
 
         print(
-            f"\r   {icon} 第 {attempts} 次查询 | " f"已等待 {elapsed:.1f}秒 | " f"状态: {status}",
+            f"\r   {icon} 第 {attempts} 次查询 | " f"已等待 {elapsed:.1f}秒 | " f"状态: {status} ",
             end="",
             flush=True,
         )

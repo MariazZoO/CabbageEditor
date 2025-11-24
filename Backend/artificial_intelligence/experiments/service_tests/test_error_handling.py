@@ -58,9 +58,7 @@ class TestServiceErrorHandling(unittest.TestCase):
         error_part = content["part"][0]
         self.assertEqual(error_part["content_type"], "text")
         self.assertIn("content_text", error_part)
-        self.assertTrue(
-            error_part["content_text"], "content_text should contain error message"
-        )
+        self.assertTrue(error_part["content_text"], "content_text should contain error message")
 
         # 验证 parameter 包含错误标识
         if "parameter" in error_part:
@@ -68,9 +66,7 @@ class TestServiceErrorHandling(unittest.TestCase):
             self.assertTrue(error_part["parameter"]["error"])
             self.assertIn("exception_type", error_part["parameter"])
 
-        print(
-            f"\n[{expected_interface_type}] Error Structure Valid: {data['status_info']}"
-        )
+        print(f"\n[{expected_interface_type}] Error Structure Valid: {data['status_info']}")
 
     @patch("Backend.artificial_intelligence.tools.text.load_text_tools")
     @patch("Backend.artificial_intelligence.service.text.get_ai_config")
@@ -96,13 +92,15 @@ class TestServiceErrorHandling(unittest.TestCase):
         """测试图像生成工具返回错误的处理"""
         mock_tool = MagicMock()
         # 模拟工具返回包含 error 的 Envelope
-        mock_tool.func.return_value = json.dumps({
-            "session_id": "test_sid",
-            "error_code": 1,
-            "status_info": "API配额已用尽",
-            "llm_content": [],
-            "metadata": {}
-        })
+        mock_tool.func.return_value = json.dumps(
+            {
+                "session_id": "test_sid",
+                "error_code": 1,
+                "status_info": "API配额已用尽",
+                "llm_content": [],
+                "metadata": {},
+            }
+        )
         mock_load_tools.return_value = [mock_tool]
 
         payload = {
@@ -155,19 +153,17 @@ class TestServiceErrorHandling(unittest.TestCase):
         """测试语音合成返回空URL的错误处理"""
         mock_tool = MagicMock()
         # 模拟工具返回成功 Envelope 但没有有效内容
-        mock_tool.func.return_value = json.dumps({
-            "session_id": "test_sid",
-            "error_code": 0,
-            "status_info": "success",
-            "llm_content": [
-                {
-                    "role": "tool",
-                    "interface_type": "speech",
-                    "part": []  # Empty parts
-                }
-            ],
-            "metadata": {}
-        })
+        mock_tool.func.return_value = json.dumps(
+            {
+                "session_id": "test_sid",
+                "error_code": 0,
+                "status_info": "success",
+                "llm_content": [
+                    {"role": "tool", "interface_type": "speech", "part": []}  # Empty parts
+                ],
+                "metadata": {},
+            }
+        )
         mock_load_tools.return_value = [mock_tool]
 
         payload = {
@@ -194,19 +190,17 @@ class TestServiceErrorHandling(unittest.TestCase):
         """测试音乐生成返回空列表的错误处理"""
         mock_tool = MagicMock()
         # 模拟工具返回成功 Envelope 但没有有效内容
-        mock_tool.func.return_value = json.dumps({
-            "session_id": "test_sid",
-            "error_code": 0,
-            "status_info": "success",
-            "llm_content": [
-                {
-                    "role": "tool",
-                    "interface_type": "music",
-                    "part": []  # Empty parts
-                }
-            ],
-            "metadata": {}
-        })
+        mock_tool.func.return_value = json.dumps(
+            {
+                "session_id": "test_sid",
+                "error_code": 0,
+                "status_info": "success",
+                "llm_content": [
+                    {"role": "tool", "interface_type": "music", "part": []}  # Empty parts
+                ],
+                "metadata": {},
+            }
+        )
         mock_load_tools.return_value = [mock_tool]
 
         payload = {
@@ -227,29 +221,32 @@ class TestServiceErrorHandling(unittest.TestCase):
         # Service raises "音乐生成未返回有效的音频部分"
         self.assertIn("有效", data["status_info"])
 
-    @patch("Backend.artificial_intelligence.service.integrated.process_chat_request")
-    def test_integrated_exception_handling(self, mock_process):
+    def test_integrated_exception_handling(self):
         """测试综合接口异常处理"""
-        # 模拟 process_chat_request 抛出异常
+        # 使用 patch.dict 强制替换 handle_integrated_entrance 全局命名空间中的 process_chat_request
+        mock_process = MagicMock()
         mock_process.side_effect = RuntimeError("对话处理失败")
 
-        payload = {
-            "session_id": "test_error",
-            "llm_content": [
-                {
-                    "role": "user",
-                    "part": [{"content_type": "text", "content_text": "Hi"}],
-                }
-            ],
-            "metadata": {"test": "exception"},
-        }
+        with patch.dict(
+            handle_integrated_entrance.__globals__, {"process_chat_request": mock_process}
+        ):
+            payload = {
+                "session_id": "test_error",
+                "llm_content": [
+                    {
+                        "role": "user",
+                        "part": [{"content_type": "text", "content_text": "Hi"}],
+                    }
+                ],
+                "metadata": {"test": "exception"},
+            }
 
-        response = handle_integrated_entrance(payload)
-        self.validate_error_structure(response, "integrated")
+            response = handle_integrated_entrance(payload)
+            self.validate_error_structure(response, "integrated")
 
-        data = json.loads(response)
-        self.assertIn("对话处理失败", data["status_info"])
-        self.assertEqual(data["metadata"]["test"], "exception")
+            data = json.loads(response)
+            self.assertIn("对话处理失败", data["status_info"])
+            self.assertEqual(data["metadata"]["test"], "exception")
 
     def test_invalid_payload(self):
         """测试各服务对无效 payload 的处理"""

@@ -76,6 +76,37 @@ def load_text_tools(config: AIConfig) -> List[StructuredTool]:
         request_timeout=60.0,
     )
 
+    def _process_generation(
+        system_prompt: str,
+        user_prompt: str,
+        text_type: str,
+    ) -> str:
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=user_prompt),
+        ]
+
+        try:
+            response = llm.invoke(messages)
+
+            # 构建 part
+            part = build_part(
+                content_type="text",
+                content_text=response.content,
+                parameter={
+                    "text_type": text_type,
+                },
+            )
+
+            # 返回成功结果
+            return build_success_result(
+                parts=[part],
+            ).to_envelope(interface_type="text")
+        except Exception as e:
+            return build_error_result(error_message=str(e)).to_envelope(
+                interface_type="text"
+            )
+
     def _generate_product_text(
         instruction: str,
         style: str = "专业",
@@ -110,33 +141,11 @@ def load_text_tools(config: AIConfig) -> List[StructuredTool]:
 4. 直接输出文案内容，不要输出任何解释
 """
 
-        messages = [
-            SystemMessage(
-                content="你是一位专业的文案撰写专家，擅长创作各类营销文案、产品文案和创意内容。"
-            ),
-            HumanMessage(content=prompt),
-        ]
-
-        try:
-            response = llm.invoke(messages)
-
-            # 构建 part
-            part = build_part(
-                content_type="text",
-                content_text=response.content,
-                parameter={
-                    "text_type": "product_text",
-                },
-            )
-
-            # 返回成功结果
-            return build_success_result(
-                parts=[part],
-            ).to_envelope(interface_type="text")
-        except Exception as e:
-            return build_error_result(error_message=str(e)).to_envelope(
-                interface_type="text"
-            )
+        return _process_generation(
+            system_prompt="你是一位专业的文案撰写专家，擅长创作各类营销文案、产品文案和创意内容。",
+            user_prompt=prompt,
+            text_type="product_text",
+        )
 
     def _generate_marketing_text(
         instruction: str,
@@ -177,33 +186,11 @@ def load_text_tools(config: AIConfig) -> List[StructuredTool]:
 4. 直接输出文案内容，不要输出任何解释
 """
 
-        messages = [
-            SystemMessage(
-                content="你是一位专业的营销文案专家，精通各类平台的文案创作和用户心理。"
-            ),
-            HumanMessage(content=prompt),
-        ]
-
-        try:
-            response = llm.invoke(messages)
-
-            # 构建 part
-            part = build_part(
-                content_type="text",
-                content_text=response.content,
-                parameter={
-                    "text_type": "marketing_text",
-                },
-            )
-
-            # 返回成功结果
-            return build_success_result(
-                parts=[part],
-            ).to_envelope(interface_type="text")
-        except Exception as e:
-            return build_error_result(error_message=str(e)).to_envelope(
-                interface_type="text"
-            )
+        return _process_generation(
+            system_prompt="你是一位专业的营销文案专家，精通各类平台的文案创作和用户心理。",
+            user_prompt=prompt,
+            text_type="marketing_text",
+        )
 
     def _generate_creative_text(
         instruction: str,
@@ -240,33 +227,11 @@ def load_text_tools(config: AIConfig) -> List[StructuredTool]:
 4. 直接输出作品内容，不要输出任何解释
 """
 
-        messages = [
-            SystemMessage(
-                content="你是一位富有创意的文案创作者，擅长各种文学体裁和创意表达。"
-            ),
-            HumanMessage(content=prompt),
-        ]
-
-        try:
-            response = llm.invoke(messages)
-
-            # 构建 part
-            part = build_part(
-                content_type="text",
-                content_text=response.content,
-                parameter={
-                    "text_type": "creative_text",
-                },
-            )
-
-            # 返回成功结果
-            return build_success_result(
-                parts=[part],
-            ).to_envelope(interface_type="text")
-        except Exception as e:
-            return build_error_result(error_message=str(e)).to_envelope(
-                interface_type="text"
-            )
+        return _process_generation(
+            system_prompt="你是一位富有创意的文案创作者，擅长各种文学体裁和创意表达。",
+            user_prompt=prompt,
+            text_type="creative_text",
+        )
 
     # 创建三个结构化工具，带有明确的参数模式
     tools = [

@@ -8,10 +8,8 @@ from pydantic import BaseModel, Field
 from langchain_core.tools import StructuredTool
 
 from Backend.artificial_intelligence.config.ai_config import AIConfig
-from Backend.artificial_intelligence.models.client_speech import (
-    create_speech_client,
-    AudioConfig,
-)
+from Backend.artificial_intelligence.models.client_speech import create_speech_client
+from Backend.artificial_intelligence.models.speech_config import AudioConfig
 from Backend.artificial_intelligence.tools.response_adapter import (
     build_part,
     build_success_result,

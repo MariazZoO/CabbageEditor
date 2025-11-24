@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from typing import Any, Dict, Iterable, List, Optional
 
 from Backend.artificial_intelligence.agent.conversation import default_session_id
-from Backend.artificial_intelligence.tools.session import (
+from Backend.artificial_intelligence.service.context import (
     reset_current_session,
     set_current_session,
 )
@@ -70,6 +70,16 @@ def extract_parameter(
                     return part_params[param_name]
 
     return default
+
+
+def parse_tool_response(response: str | Dict[str, Any]) -> Dict[str, Any]:
+    """解析工具返回的响应，支持 JSON 字符串或字典。"""
+    if isinstance(response, dict):
+        return response
+    try:
+        return json.loads(response)
+    except (json.JSONDecodeError, TypeError) as e:
+        raise ValueError(f"Invalid tool response format: {str(e)}")
 
 
 def build_success_response(
@@ -157,6 +167,7 @@ __all__ = [
     "session_context",
     "pick_tool",
     "extract_parameter",
+    "parse_tool_response",
     "build_success_response",
     "build_error_response",
 ]

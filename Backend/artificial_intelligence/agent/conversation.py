@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Dict, List, Sequence
 from langchain_core.messages import BaseMessage
 
-from Backend.artificial_intelligence.tools.session import (
+from Backend.artificial_intelligence.service.context import (
     get_boot_session_id,
     get_current_session,
 )

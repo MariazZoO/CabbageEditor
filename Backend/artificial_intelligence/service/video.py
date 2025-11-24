@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from typing import Any, Dict
 
 from Backend.artificial_intelligence.config.ai_config import get_ai_config
@@ -11,6 +10,7 @@ from Backend.artificial_intelligence.service.common import (
     build_success_response,
     session_context,
     extract_parameter,
+    parse_tool_response,
 )
 
 
@@ -68,7 +68,7 @@ def handle_video_generation(payload: Any) -> str:
             session_id = sid
 
         # 解析 Tool 返回的 Envelope JSON
-        tool_envelope = json.loads(result_json)
+        tool_envelope = parse_tool_response(result_json)
 
         # 检查错误
         if tool_envelope.get("error_code", 0) != 0:

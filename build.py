@@ -10,7 +10,7 @@ Run:
         python build.py
 
 Notes:
-- Uses `python -m pip` to avoid PATH issues.
+- Uses `python -m pip` or `uv pip` to avoid PATH issues (configurable via USE_UV_PIP constant).
 - Uses the local npm at Env\node-v22.19.0-win-x64\npm.cmd and sets PATH accordingly.
 """
 
@@ -22,6 +22,12 @@ import sys
 import subprocess
 from pathlib import Path
 from typing import List, Optional
+
+# ============================================================
+# Configuration: Choose pip tool
+# ============================================================
+# Set to True to use 'uv pip', False to use standard 'pip'
+USE_UV_PIP = True
 
 ROOT = Path(__file__).resolve().parent
 REQUIREMENTS = ROOT / "requirements.txt"
@@ -71,10 +77,7 @@ def _parse_requirement_name(req_line: str) -> Optional[str]:
     if " #" in line:
         line = line.split(" #", 1)[0].strip()
     # PEP 508 direct URLs, editable installs, or local paths are out of scope – just install directly later
-    if any(
-        line.startswith(prefix)
-        for prefix in ("-e ", "git+", "http://", "https://", "file:")
-    ):
+    if any(line.startswith(prefix) for prefix in ("-e ", "git+", "http://", "https://", "file:")):
         # return a best-effort name for `pip show` (None forces install)
         return None
     # Strip extras and version specifiers for show-check: name[extras]==1.2.3 -> name
@@ -85,10 +88,17 @@ def _parse_requirement_name(req_line: str) -> Optional[str]:
 
 def ensure_python_requirements(requirements_file: Path = REQUIREMENTS) -> None:
     _print_header("Step 1: Ensuring Python requirements are installed")
+
+    # Determine pip command based on USE_UV_PIP setting
+    if USE_UV_PIP:
+        pip_cmd_base = ["uv", "pip"]
+        print("Using pip tool: uv")
+    else:
+        pip_cmd_base = [sys.executable, "-m", "pip"]
+        print("Using pip tool: standard pip")
+
     if not requirements_file.exists():
-        print(
-            f"WARNING: {requirements_file} not found. Skipping Python dependency installation."
-        )
+        print(f"WARNING: {requirements_file} not found. Skipping Python dependency installation.")
         return
 
     lines = requirements_file.read_text(encoding="utf-8").splitlines()
@@ -102,7 +112,7 @@ def ensure_python_requirements(requirements_file: Path = REQUIREMENTS) -> None:
                 missing.append(raw.strip())
             continue
         # Check if installed
-        rc = _run([sys.executable, "-m", "pip", "show", base_name])
+        rc = _run(pip_cmd_base + ["show", base_name])
         if rc != 0:
             missing.append(raw.strip())
 
@@ -116,11 +126,10 @@ def ensure_python_requirements(requirements_file: Path = REQUIREMENTS) -> None:
 
     # Install missing individually to keep progress visible; if this is too slow, fallback to -r file
     for req in missing:
-        rc = _run([sys.executable, "-m", "pip", "install", req])
+        rc = _run(pip_cmd_base + ["install", req])
         if rc != 0:
             print(
-                f"ERROR: Failed to install '{req}'. \
-You may retry or run: {sys.executable} -m pip install -r {requirements_file}"
+                f"ERROR: Failed to install '{req}'. You may retry or run: {' '.join(pip_cmd_base)} install -r {requirements_file}"
             )
             sys.exit(rc)
 
@@ -131,12 +140,7 @@ def clone_inner_agent_workflow(repo_url: str, target_dir: Path) -> None:
 
     # Check if git is available
     try:
-        result = subprocess.run(
-            ["git", "--version"],
-            capture_output=True,
-            text=True,
-            check=False
-        )
+        result = subprocess.run(["git", "--version"], capture_output=True, text=True, check=False)
         if result.returncode != 0:
             print("ERROR: git is not installed or not in PATH. Please install git first.")
             sys.exit(1)
@@ -172,7 +176,9 @@ def clone_inner_agent_workflow(repo_url: str, target_dir: Path) -> None:
     print(f"Successfully cloned InnerAgent workflow to {target_dir}")
 
 
-def build_frontend(frontend_dir: Path = FRONTEND_DIR, node_dir: Path = NODE_DIR, npm_cmd: Path = NPM_CMD) -> None:
+def build_frontend(
+    frontend_dir: Path = FRONTEND_DIR, node_dir: Path = NODE_DIR, npm_cmd: Path = NPM_CMD
+) -> None:
     _print_header("Step 2: Installing and building Frontend with bundled Node/npm")
     if not frontend_dir.exists():
         print(f"ERROR: Frontend directory not found: {frontend_dir}")
@@ -181,9 +187,7 @@ def build_frontend(frontend_dir: Path = FRONTEND_DIR, node_dir: Path = NODE_DIR,
     if os.name == "nt":
         # Prefer the local npm.cmd
         if not npm_cmd.exists():
-            print(
-                f"ERROR: npm not found at {npm_cmd}. Ensure Node is present under {node_dir}."
-            )
+            print(f"ERROR: npm not found at {npm_cmd}. Ensure Node is present under {node_dir}.")
             sys.exit(1)
         npm = str(npm_cmd)
     else:
@@ -217,6 +221,7 @@ def build_frontend(frontend_dir: Path = FRONTEND_DIR, node_dir: Path = NODE_DIR,
 def main() -> None:
     # Load configuration
     from config.app_config import get_app_config
+
     cfg = get_app_config()
 
     # Step 1: Ensure Python requirements

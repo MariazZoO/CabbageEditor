@@ -56,6 +56,22 @@
                   <div class="text-xs text-gray-500 mt-1 truncate">{{ img.name }}</div>
                 </div>
               </div>
+
+              <!-- 视频显示 -->
+              <div v-if="message.videos && message.videos.length > 0" class="flex flex-wrap gap-2 mt-2">
+                <div v-for="(vid, vIdx) in message.videos" :key="vIdx" class="max-w-sm w-full">
+                  <video :src="vid.url" controls class="rounded border max-h-60 w-full bg-black"></video>
+                  <div class="text-xs text-gray-500 mt-1 truncate">{{ vid.name || '视频' }}</div>
+                </div>
+              </div>
+
+              <!-- 音频显示 -->
+              <div v-if="message.audios && message.audios.length > 0" class="flex flex-col gap-2 mt-2">
+                <div v-for="(aud, aIdx) in message.audios" :key="aIdx" class="w-full">
+                  <audio :src="aud.url" controls class="w-full"></audio>
+                  <div class="text-xs text-gray-500 mt-1 truncate">{{ aud.name || '音频' }}</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -99,7 +115,13 @@
 
             <!-- 中间：输入框和待发送图片预览 -->
             <div class="bg-white rounded-lg border border-gray-300 p-2 space-y-2">
-              <textarea v-model="userInput" placeholder="输入消息..." class="w-full p-2 border-none rounded-lg focus:ring-0 focus:outline-none transition-all resize-none" rows="3"></textarea>
+              <textarea 
+                v-model="userInput" 
+                placeholder="输入消息..." 
+                class="w-full p-2 border-none rounded-lg focus:ring-0 focus:outline-none transition-all resize-none" 
+                rows="3"
+                @keydown.enter="handleEnter"
+              ></textarea>
 
               <div v-if="hasPendingImages" class="space-y-2">
                 <div class="flex items-center justify-between">
@@ -190,7 +212,20 @@ const messages = ref([
 ]);
 const userInput = ref('');
 const chatHistoryRef = ref(null);
+// sessionId 由前端负责生成，后端仅作兜底
 const sessionId = ref(null);
+
+// 生成随机 session id（优先使用 crypto.randomUUID）
+function ensureSessionId() {
+  if (sessionId.value) return sessionId.value;
+  try {
+    // 现代浏览器支持 crypto.randomUUID()
+    sessionId.value = (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : `sid_${Date.now()}_${Math.floor(Math.random()*1e6)}`;
+  } catch (e) {
+    sessionId.value = `sid_${Date.now()}_${Math.floor(Math.random()*1e6)}`;
+  }
+  return sessionId.value;
+}
 const isSending = ref(false); // 发送状态
 const sendTimeout = ref(null); // 发送超时定时器
 const MESSAGE_TIMEOUT = 30000; // 30秒超时
@@ -215,8 +250,6 @@ const hasPendingImages = computed(() => {
   return Object.values(pendingImages.value).some(img => img !== null);
 });
 
-const uploadResolvers = new Map();
-
 // 提示词相关
 const showPrompts = ref(false);
 const promptPresets = ref([
@@ -235,59 +268,12 @@ function applyPrompt(p) {
   hidePrompts();
 }
 
-function createToken() {
-  if (window.crypto?.randomUUID) {
-    return window.crypto.randomUUID();
+function handleEnter(e) {
+  if (e.isComposing) return;
+  if (!e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
   }
-  return `${Date.now().toString(36)}-${Math.random().toString(16).slice(2)}`;
-}
-
-async function uploadImageToBackend({type, name, data}) {
-  const token = createToken();
-  
-  // 构造符合 llms.txt 规范的请求
-  // 这里我们模拟一个用户发送图片的消息，后端处理后会返回包含图片 URL 的响应
-  const payloadObj = {
-    session_id: sessionId.value,
-    llm_content: [
-      {
-        role: "user",
-        interface_type: "integrated", // 或者 image? 但 integrated 更通用
-        sent_time_stamp: Date.now(),
-        part: [
-          {
-            content_type: "image",
-            content_url: data, // base64
-            parameter: {
-               // 可以在这里传递 type (product/scene)
-               // 但目前后端 integrated 接口可能不直接处理这个 parameter
-               // 暂时保持简单，后端会自动处理上传
-            }
-          }
-        ]
-      }
-    ],
-    metadata: {
-      token: token, // 用于回调匹配
-      upload_type: type // 辅助信息
-    }
-  };
-  
-  const payload = JSON.stringify(payloadObj);
-  
-  const promise = new Promise((resolve, reject) => {
-    uploadResolvers.set(token, {resolve, reject});
-  });
-  await waitWebChannel();
-  if (window.aiService && typeof window.aiService.upload_image === 'function') {
-    window.aiService.upload_image(payload);
-  } else if (window.pyBridge && typeof window.pyBridge.upload_image === 'function') {
-    window.pyBridge.upload_image(payload);
-  } else {
-    uploadResolvers.delete(token);
-    throw new Error("未发现图片上传通道 (aiService/pyBridge)");
-  }
-  return promise;
 }
 
 function triggerImageSelect(type) {
@@ -346,9 +332,6 @@ async function onImageChange(e) {
       name: file.name,
       preview: base64,
       type,
-      url: null,
-      uploading: false,
-      needsUpload: true, // 标记需要上传
     };
     
     imageError.value = '';
@@ -391,13 +374,16 @@ const SendMessageToAI = async (query, extra = {}) => {
     extra.images.forEach(img => {
       parts.push({
         content_type: "image",
-        content_url: img.url,
+        content_url: img.url || img.preview,
+        content_text: img.type,
         parameter: {
-          resolution: "1024x1024" // 默认或从 img 获取
         }
       });
     });
   }
+
+  // 确保 session_id 已生成
+  ensureSessionId();
 
   const payloadObj = {
     session_id: sessionId.value,
@@ -444,51 +430,6 @@ const sendMessage = async () => {
   // 防止重复发送
   if (isSending.value) return;
 
-  // 检查是否有正在上传的图片
-  const uploadingImage = imagesToSend.find(img => img.uploading);
-  if (uploadingImage) {
-    imageError.value = `请等待 ${imageTypeLabels[uploadingImage.type]} 图片上传完成`;
-    return;
-  }
-
-  // 上传所有需要上传的图片
-  try {
-    for (const img of imagesToSend) {
-      if (img.needsUpload && !img.url) {
-        // 标记为上传中
-        img.uploading = true;
-        imageError.value = `正在上传 ${imageTypeLabels[img.type]} 图片...`;
-        
-        const result = await uploadImageToBackend({
-          type: img.type,
-          name: img.name,
-          data: img.preview
-        });
-        
-        const url = result?.image?.url;
-        if (!url) {
-          throw new Error(result?.content || '上传失败');
-        }
-        
-        // 更新图片信息
-        img.url = url;
-        img.uploading = false;
-        img.needsUpload = false;
-      }
-    }
-    imageError.value = '';
-  } catch (err) {
-    console.error('上传图片失败:', err);
-    imageError.value = err?.message || '上传图片失败，请重试。';
-    // 重置上传状态
-    imagesToSend.forEach(img => {
-      if (img.uploading) {
-        img.uploading = false;
-      }
-    });
-    return;
-  }
-
   // 保存当前输入以备回滚
   const savedInput = text;
   const savedImages = [...imagesToSend];
@@ -534,10 +475,13 @@ const sendMessage = async () => {
   });
 
   const extra = {session_id: sessionId.value};
+  // 确保 session_id 在发送时存在
+  ensureSessionId();
+  extra.session_id = sessionId.value;
   if (imagesToSend.length > 0) {
     extra.images = imagesToSend.map(img => ({
       name: img.name,
-      url: img.url,
+      preview: img.preview,
       type: img.type,
     }));
   }
@@ -557,7 +501,7 @@ const sendMessage = async () => {
   }, MESSAGE_TIMEOUT);
 
   try {
-    await SendMessageToAI(text || '[图片]', extra);
+    await SendMessageToAI(text, extra);
     // WebChannel 是单向的，我们假设发送成功
     // 实际的成功会在 receiveAIMessage 中确认
     messages.value[messageIndex].status = 'sent';
@@ -617,34 +561,6 @@ window.receiveAIMessage = (data) => {
       sessionId.value = message.session_id;
     }
 
-    // 处理图片上传回调 (通过 metadata 中的 token)
-    const token = message.metadata?.token;
-    if (token) {
-      const handler = uploadResolvers.get(token);
-      if (handler) {
-        uploadResolvers.delete(token);
-        if (message.error_code === 0) {
-           // 尝试从 llm_content 中提取 image url
-           let imageUrl = "";
-           if (message.llm_content && message.llm_content.length > 0) {
-             const content = message.llm_content[0];
-             if (content.part) {
-               const imgPart = content.part.find(p => p.content_type === 'image');
-               if (imgPart) imageUrl = imgPart.content_url;
-             }
-           }
-           // 构造旧格式的返回以便兼容 uploadImageToBackend 的逻辑
-           handler.resolve({
-             image: { url: imageUrl },
-             content: message.status_info
-           });
-        } else {
-          handler.reject(new Error(message.status_info || '上传失败'));
-        }
-      }
-      return; // 如果是上传回调，不再作为聊天消息显示
-    }
-
     // 收到 AI 回复时，将最后一条"发送中"的用户消息标记为成功
     const lastUserMessage = messages.value.slice().reverse().find(m => m.sender === 'User');
     if (lastUserMessage && (lastUserMessage.status === 'sending' || lastUserMessage.status === 'sent')) {
@@ -667,6 +583,8 @@ window.receiveAIMessage = (data) => {
         if (content.role === 'assistant') {
           let textContent = "";
           let images = [];
+          let videos = [];
+          let audios = [];
           
           if (content.part && Array.isArray(content.part)) {
             content.part.forEach(part => {
@@ -676,6 +594,16 @@ window.receiveAIMessage = (data) => {
                 images.push({
                   preview: part.content_url, // 或者是 base64
                   name: 'image'
+                });
+              } else if (part.content_type === 'video') {
+                videos.push({
+                  url: part.content_url,
+                  name: 'video'
+                });
+              } else if (part.content_type === 'audio') {
+                audios.push({
+                  url: part.content_url,
+                  name: 'audio'
                 });
               }
             });
@@ -693,9 +621,12 @@ window.receiveAIMessage = (data) => {
           } else if (images.length > 1) {
             msgObj.images = images;
           }
+
+          if (videos.length > 0) msgObj.videos = videos;
+          if (audios.length > 0) msgObj.audios = audios;
           
-          // 如果既没有文本也没有图片，可能是空响应或纯指令
-          if (!msgObj.text && !msgObj.imageData && !msgObj.images) {
+          // 如果既没有文本也没有媒体内容，可能是空响应或纯指令
+          if (!msgObj.text && !msgObj.imageData && !msgObj.images && !msgObj.videos && !msgObj.audios) {
              // 忽略空消息
              return;
           }
@@ -807,7 +738,6 @@ onUnmounted(() => {
     }
   }
   document.removeEventListener('click', handleGlobalClick, true);
-  uploadResolvers.clear();
   
   // 清理超时定时器
   if (sendTimeout.value) {

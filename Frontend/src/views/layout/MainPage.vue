@@ -1,20 +1,21 @@
 <template>
-  <div class="relative min-h-screen w-full bg-white/5" tabindex="0">
+  <div class="relative min-h-screen w-full bg-gradient-to-br from-gray-50 to-gray-100" tabindex="0">
     <!-- 场景栏 -->
-    <div class="w-full bg-[#4b6554]/90 border-b border-gray-200/65 h-12 relative">
-      <div class="flex items-center space-x-1 px-2 overflow-x-auto scroll-smooth tab-container">
+    <div class="w-full bg-gradient-to-r from-teal-700 to-green-600 border-b border-teal-800/60 h-13 relative shadow-md">
+      <div class="flex items-center space-x-1 px-3 overflow-x-auto scroll-smooth tab-container">
         <div
             v-for="(tab, index) in tabs"
             :key="index"
-            class="px-4 py-2 cursor-pointer rounded-t-lg flex items-center gap-2"
+            class="px-5 py-2.5 cursor-pointer rounded-t-lg flex items-center gap-2 transition-all duration-200 ease-in-out"
             :class="{
-            'bg-white/65 border-b-2 border-blue-500': activeTab === index,
-            'hover:bg-gray-200/65': activeTab !== index
+            'bg-white/90 border-b-2 border-teal-500 shadow-sm': activeTab === index,
+            'hover:bg-white/20 text-white/90': activeTab !== index,
+            'text-gray-800': activeTab === index
           }"
             @click="switchTab(index)"
             @dblclick="openSceneBar(index)">
           <span
-              class="max-w-[120px] truncate px-2 py-1 text-gray-700 select-none"
+              class="max-w-[140px] truncate px-2 py-1 select-none font-medium"
           >
             {{ tab.name }}
           </span>
@@ -22,14 +23,17 @@
           <button
               v-if="tabs.length > 1"
               @click.stop="closeTab(index)"
-              class="hover:bg-gray-300/50 rounded-full p-1">
+              class="hover:bg-gray-300/50 rounded-full p-1 transition-colors duration-200 hover:text-red-500"
+              aria-label="关闭标签"
+          >
             ×
           </button>
         </div>
 
         <button
             @click="addNewTab"
-            class="px-4 py-2 text-xl font-bold hover:bg-gray-200/20 rounded-lg"
+            class="px-4 py-2.5 text-xl font-bold hover:bg-white/20 rounded-lg transition-all duration-200 text-white hover:scale-105"
+            aria-label="添加新标签"
         >
           +
         </button>
@@ -38,41 +42,44 @@
     <!-- 自定义弹窗 -->
     <div
         v-if="showDialog"
-        class="fixed top-0 left-0 w-full h-full flex items-center justify-center bg-black/50"
+        class="fixed top-0 left-0 w-full h-full flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-300"
     >
-      <div class="bg-gray-100/95 p-6 rounded shadow w-96 h-40 flex flex-col gap-4">
-        <div>
-          <label
-              for="new-tab-name"
-              class="block text-sm font-medium text-gray-700"
-          >
-            添加场景
-          </label>
-          <input
-              id="new-tab-name"
-              v-model="inputState.newTabName"
-              type="text"
-              class="mt-1 px-3 py-2 bg-gray-100 border border-gray-300 rounded-md w-full"
-              ref="nameInput"
-              @keyup.enter="confirmAddTab"
-              autofocus
-          />
-        </div>
-        <div class="flex justify-between">
-          <button
-              @click="confirmAddTab"
-              class="px-4 py-2 text-white bg-blue-500 rounded-md hover:bg-blue-600 transition-colors
-                  duration-200 shadow-sm hover:shadow-md focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            创建场景
-          </button>
-          <button
-              @click="cancelAddTab"
-              class="px-4 py-2 text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors
-                  duration-200 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            取消
-          </button>
+      <div class="bg-white rounded-lg shadow-xl w-96 transform transition-all duration-300 ease-out scale-100">
+        <div class="p-6">
+          <div>
+            <label
+                for="new-tab-name"
+                class="block text-sm font-medium text-gray-700 mb-2"
+            >
+              添加场景
+            </label>
+            <input
+                id="new-tab-name"
+                v-model="inputState.newTabName"
+                type="text"
+                class="mt-1 px-3 py-2 bg-gray-50 border border-gray-300 rounded-md w-full focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-colors duration-200 outline-none"
+                ref="nameInput"
+                @keyup.enter="confirmAddTab"
+                autofocus
+                placeholder="输入场景名称"
+            />
+          </div>
+          <div class="flex justify-end gap-3 mt-5">
+            <button
+                @click="cancelAddTab"
+                class="px-4 py-2 text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors
+                    duration-200 focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+            >
+              取消
+            </button>
+            <button
+                @click="confirmAddTab"
+                class="px-4 py-2 text-white bg-teal-600 rounded-md hover:bg-teal-700 transition-colors
+                    duration-200 shadow-sm hover:shadow-md focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+            >
+              创建场景
+            </button>
+          </div>
         </div>
       </div>
     </div>
